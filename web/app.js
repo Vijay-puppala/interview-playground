@@ -4,6 +4,7 @@
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
   const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const pad3 = (n) => String(n).padStart(3, "0");
 
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -11,6 +12,7 @@
   };
 
   const LANGS = { py: "Python", js: "JavaScript", ts: "TypeScript" };
+  const ext = LANGS;
   const PROBLEMS = window.PROBLEMS;
   const BY_ID = Object.fromEntries(PROBLEMS.map((p) => [p.id, p]));
   const CATS = window.CATEGORIES;
@@ -18,7 +20,7 @@
 
   const state = {
     lang: LANGS[store.get("qa.lang", "py")] ? store.get("qa.lang", "py") : "py",
-    view: "problems",
+    view: "home",
     current: null,
     category: "all",
     query: "",
@@ -27,6 +29,8 @@
     revealed: false,
     token: 0,
   };
+
+  const view = { home: $("#viewHome"), problems: $("#viewProblems"), cheatsheet: $("#viewCheatsheet"), playground: $("#viewPlayground") };
 
   /* ------------------------------------------------------------- helpers */
   function pyRepr(v) {
@@ -41,40 +45,92 @@
   const repr = (v, lang) => (lang === "py" ? pyRepr(v) : JSON.stringify(v));
   const callText = (p, c, lang) => `${p.fn[lang] || p.fn.py}(${c.args.map((a) => repr(a, lang)).join(", ")})`;
   const effLang = (p) => (p.starter[state.lang] ? state.lang : "py");
-  const ext = { py: "Python", js: "JavaScript", ts: "TypeScript" };
 
   function persistSolved() { store.set("qa.solved", [...state.solved]); }
   function markSolved(id) {
     if (state.solved.has(id)) return;
     state.solved.add(id);
     persistSolved();
+    store.set("qa.recent", [id, ...store.get("qa.recent", []).filter((x) => x !== id)].slice(0, 8));
     renderList();
     updateProgress();
   }
 
-  /* ---------------------------------------------------------------- theme */
-  function applyTheme(t) {
-    document.documentElement.setAttribute("data-theme", t);
-    store.set("qa.theme", t);
+  /* ------------------------------------------------- mode + colour theme */
+  const PALETTES = [
+    { id: "aubergine", name: "Aubergine", top: "#350d36", side: "#3f0e40", btn: "#007a5a" },
+    { id: "ochin", name: "Ochin", top: "#263341", side: "#303e4d", btn: "#2f6da3" },
+    { id: "monument", name: "Monument", top: "#085b5f", side: "#0b6f73", btn: "#f79f66" },
+    { id: "hoth", name: "Hoth", top: "#ececf1", side: "#f8f8fa", btn: "#1264a3" },
+    { id: "choco-mint", name: "Choco Mint", top: "#43372c", side: "#544538", btn: "#5db09b" },
+    { id: "sweet-treat", name: "Sweet Treat", top: "#5b1f47", side: "#6e2a58", btn: "#f4c24a" },
+  ];
+  const mql = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : { matches: false };
+  const root = document.documentElement;
+  const getMode = () => { const m = store.get("qa.theme", "system"); return m === "light" || m === "dark" ? m : "system"; };
+  const getPalette = () => (PALETTES.some((p) => p.id === store.get("qa.palette")) ? store.get("qa.palette") : "aubergine");
+  const resolveMode = (m) => (m === "system" ? (mql.matches ? "dark" : "light") : m);
+
+  function applyMode(m) {
+    store.set("qa.theme", m);
+    root.setAttribute("data-theme", resolveMode(m));
+    syncPalettePanel();
   }
-  $("#themeBtn").addEventListener("click", () => {
-    applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+  function applyPalette(id) {
+    store.set("qa.palette", id);
+    root.setAttribute("data-palette", id);
+    syncPalettePanel();
+  }
+  if (mql.addEventListener) mql.addEventListener("change", () => { if (getMode() === "system") applyMode("system"); });
+  $("#themeBtn").addEventListener("click", () => applyMode(root.getAttribute("data-theme") === "dark" ? "light" : "dark"));
+
+  const palette = $("#palette");
+  palette.innerHTML = `
+    <h3>Mode</h3>
+    <div class="mode" role="radiogroup" aria-label="Mode">
+      ${["light", "dark", "system"].map((m) => `<button role="radio" data-mode="${m}">${m[0].toUpperCase() + m.slice(1)}</button>`).join("")}
+    </div>
+    <h3>Colour theme</h3>
+    <div class="pal-grid" role="radiogroup" aria-label="Colour theme">
+      ${PALETTES.map((p) => `<button class="pal" role="radio" data-palette="${p.id}" style="--p-top:${p.top};--p-side:${p.side};--p-btn:${p.btn}">
+        <span class="sw"><i></i><i></i><i></i></span>${esc(p.name)}</button>`).join("")}
+    </div>`;
+  function syncPalettePanel() {
+    $$("[data-mode]", palette).forEach((b) => b.setAttribute("aria-checked", String(b.dataset.mode === getMode())));
+    $$("[data-palette]", palette).forEach((b) => b.setAttribute("aria-checked", String(b.dataset.palette === getPalette())));
+  }
+  palette.addEventListener("click", (e) => {
+    const m = e.target.closest("[data-mode]");
+    const p = e.target.closest("[data-palette]");
+    if (m) applyMode(m.dataset.mode);
+    if (p) applyPalette(p.dataset.palette);
   });
+  const paletteBtn = $("#paletteBtn");
+  function setPalette(open) {
+    palette.hidden = !open;
+    paletteBtn.setAttribute("aria-expanded", String(open));
+    if (open) syncPalettePanel();
+  }
+  paletteBtn.addEventListener("click", (e) => { e.stopPropagation(); setPalette(palette.hidden); });
+  document.addEventListener("click", (e) => { if (!palette.hidden && !e.target.closest(".pop-wrap")) setPalette(false); });
+  syncPalettePanel();
 
   /* ------------------------------------------------------------- language */
   function syncLangUi() {
     $$("#langSeg button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.lang === state.lang)));
   }
+  function setLang(l) {
+    if (l === state.lang) return;
+    state.lang = l;
+    store.set("qa.lang", l);
+    render();
+  }
   $("#langSeg").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-lang]");
-    if (!b || b.dataset.lang === state.lang) return;
-    state.lang = b.dataset.lang;
-    store.set("qa.lang", state.lang);
-    syncLangUi();
-    render();
+    if (b) setLang(b.dataset.lang);
   });
 
-  /* -------------------------------------------------------------- sidebar */
+  /* -------------------------------------------------- sidebar: problems */
   function renderChips() {
     const all = [{ id: "all", label: "All", count: PROBLEMS.length }, ...CATS];
     $("#chips").innerHTML = all.map((c) =>
@@ -100,11 +156,17 @@
   }
   function renderList() {
     const items = filtered();
-    $("#plist").innerHTML = items.length
-      ? items.map((p) => `<li><button data-id="${p.id}" ${p.id === state.current ? 'aria-current="true"' : ""}>
-          <span class="num">${String(p.num).padStart(3, "0")}</span><span class="t">${esc(p.title)}</span>
-          <span class="done" aria-label="${state.solved.has(p.id) ? "solved" : ""}">${state.solved.has(p.id) ? "✓" : ""}</span></button></li>`).join("")
-      : `<li class="empty">No problems match.</li>`;
+    const grouped = state.category === "all" && !state.query;
+    let html = "";
+    let last = null;
+    for (const p of items) {
+      if (grouped && p.category !== last) { last = p.category; html += `<li class="grp">${esc(CAT_LABEL[p.category])}</li>`; }
+      const solved = state.solved.has(p.id);
+      html += `<li><button data-id="${p.id}" class="${solved ? "" : "unsolved"}" ${p.id === state.current ? 'aria-current="true"' : ""}>
+        <span class="num">${pad3(p.num)}</span><span class="t">${esc(p.title)}</span>
+        <span class="done" aria-label="${solved ? "solved" : ""}">${solved ? "✓" : ""}</span></button></li>`;
+    }
+    $("#plist").innerHTML = html || `<li class="empty">No problems match.</li>`;
   }
   $("#plist").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-id]");
@@ -169,29 +231,75 @@
     return { ta, get value() { return ta.value; }, set(v) { ta.value = v; refresh(); onChange && onChange(v); } };
   }
 
-  /* ------------------------------------------------------- problems view */
-  const view = { problems: $("#viewProblems"), cheatsheet: $("#viewCheatsheet"), playground: $("#viewPlayground") };
+  /* ------------------------------------------------------------ home view */
+  const ICONS = {
+    book: '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M6 3h12a1 1 0 011 1v17l-7-4-7 4V4a1 1 0 011-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+    term: '<svg viewBox="0 0 24 24" width="22" height="22"><rect x="3" y="4" width="18" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 10l3 2.5L7 15M12.5 15H17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    table: '<svg viewBox="0 0 24 24" width="22" height="22"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 10h18M9 10v10" stroke="currentColor" stroke-width="1.8"/></svg>',
+    flask: '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 001.3 2.2h12.4a1.5 1.5 0 001.3-2.2L14 9V3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+  };
 
-  function renderWelcome() {
-    const done = PROBLEMS.filter((p) => state.solved.has(p.id)).length;
-    view.problems.innerHTML = `
-      <h1 class="title">QA Interview Playground</h1>
-      <p class="muted">${PROBLEMS.length} interview problems for SDET and QA automation roles: strings, arrays, numbers, data structures,
-      automation utilities, pandas / PySpark data checks and 50 pytest scenarios.</p>
-      <div class="card"><div class="card-body">
-        <ol>
-          <li>Pick a problem on the left (or search by name).</li>
-          <li>Choose <b>Python</b>, <b>JavaScript</b> or <b>TypeScript</b> at the top right.</li>
-          <li>Write your solution and press <b>Run</b>: it is checked against the examples in your browser.</li>
-          <li>Stuck? Press <b>Reveal solution</b> for the reference code and an explanation. It stays hidden until you ask.</li>
-        </ol>
-        <p>Want to experiment freely? Open the <a href="#playground">Playground</a> and run any program.</p>
-        <div class="toolbar"><a class="btn primary" href="#p001" style="text-decoration:none">Start with problem 1</a>
-        <span class="muted">${done} of ${PROBLEMS.length} solved so far</span></div>
-      </div></div>`;
+  function firstOf(catId) {
+    const all = PROBLEMS.filter((p) => p.category === catId);
+    return all.find((p) => !state.solved.has(p.id)) || all[0];
   }
 
+  function renderHome() {
+    const total = PROBLEMS.length;
+    const solvedN = PROBLEMS.filter((p) => state.solved.has(p.id)).length;
+    const last = BY_ID[store.get("qa.last", null)];
+    const csEntries = (window.CHEATSHEET || []).reduce((n, s) => n + s.entries.length, 0);
+    const recent = store.get("qa.recent", []).filter((id) => BY_ID[id]).slice(0, 5);
+    const rows = CATS.map((c) => {
+      const all = PROBLEMS.filter((p) => p.category === c.id);
+      return { c, n: all.length, s: all.filter((p) => state.solved.has(p.id)).length };
+    });
+    view.home.innerHTML = `
+      <section class="hero">
+        <h1>Welcome back</h1>
+        <p>${total} interview problems, a ${csEntries}-entry cheat sheet and an in-browser playground for SDET and QA engineers,
+        in Python, JavaScript and TypeScript. Pick up where you left off, or jump straight to anything with <kbd>Ctrl</kbd> <kbd>K</kbd>.</p>
+        <div class="toolbar">
+          ${last ? `<a class="btn primary" href="#${last.id}">Continue: ${esc(last.title)}</a>` : `<a class="btn primary" href="#p001">Start with problem 1</a>`}
+          <a class="btn" href="#cheatsheet">Cheat sheet</a>
+          <a class="btn" href="#playground">Playground</a>
+        </div>
+      </section>
+
+      <div class="stats">
+        <div class="stat"><b>${solvedN}<small class="muted" style="font-size:16px;font-weight:700"> / ${total}</small></b><span>Problems solved</span></div>
+        <div class="stat"><b>${Math.round((100 * solvedN) / total)}%</b><span>Complete</span></div>
+        <div class="stat"><b>${csEntries}</b><span>Cheat-sheet entries</span></div>
+        <div class="stat"><b>3</b><span>Languages: Python, JavaScript, TypeScript</span></div>
+      </div>
+
+      <div class="h2row"><h2>Progress by topic</h2><span class="muted">Click a topic to continue it</span></div>
+      <div>${rows.map(({ c, n, s }) => `<button class="cat-row" data-cat="${c.id}"><span><b>${esc(c.label)}</b></span>
+        <span class="bar"><i style="width:${(100 * s) / n}%"></i></span><span class="n">${s} / ${n}</span></button>`).join("")}</div>
+
+      <div class="h2row"><h2>Jump in</h2></div>
+      <div class="quick">
+        <a class="qcard" href="#cheatsheet"><span class="ic">${ICONS.book}</span><div><b>Cheat sheet</b><span>${csEntries} concepts and methods with runnable examples</span></div></a>
+        <a class="qcard" href="#playground"><span class="ic">${ICONS.term}</span><div><b>Playground</b><span>Run any Python, JavaScript or TypeScript program</span></div></a>
+        <a class="qcard" href="#${firstOf("data").id}"><span class="ic">${ICONS.table}</span><div><b>pandas &amp; PySpark</b><span>Data-validation problems for SDETs</span></div></a>
+        <a class="qcard" href="#${firstOf("pytest").id}"><span class="ic">${ICONS.flask}</span><div><b>pytest scenarios</b><span>Fixtures, parametrize, mocking, page objects</span></div></a>
+      </div>
+
+      ${recent.length ? `<div class="h2row"><h2>Recently solved</h2></div><div class="recent">${recent.map((id) => {
+        const p = BY_ID[id];
+        return `<a href="#${p.id}"><span class="num">${pad3(p.num)}</span><span>${esc(p.title)}</span><span class="ok">✓</span></a>`;
+      }).join("")}</div>` : ""}`;
+
+    $$(".cat-row", view.home).forEach((b) => b.addEventListener("click", () => {
+      state.category = b.dataset.cat;
+      renderChips();
+      location.hash = firstOf(b.dataset.cat).id;
+    }));
+  }
+
+  /* ------------------------------------------------------- problems view */
   function renderProblem(p) {
+    store.set("qa.last", p.id);
     const lang = effLang(p);
     const fallback = lang !== state.lang;
     const idx = PROBLEMS.indexOf(p);
@@ -209,11 +317,12 @@
         : `<p class="muted" style="margin:0">${p.kind === "scenario" ? "Write the pytest test (and any fixtures it needs) described in the title, then reveal the solution to compare." : "No automatic checker for this one. Write it, then compare with the reference solution."}</p>`;
 
     view.problems.innerHTML = `
-      <div class="eyebrow"><span class="code-inline">#${String(p.num).padStart(3, "0")}</span>
+      <div class="eyebrow"><span class="code-inline">#${pad3(p.num)}</span>
         <span class="badge">${esc(CAT_LABEL[p.category])}</span>
-        <span class="badge ${state.solved.has(p.id) ? "ok" : ""}" id="solvedBadge">${state.solved.has(p.id) ? "✓ Solved" : "Not solved"}</span></div>
+        <span class="badge ${state.solved.has(p.id) ? "ok" : ""}" id="solvedBadge">${state.solved.has(p.id) ? "✓ Solved" : "Not solved"}</span>
+        <span>Problem ${idx + 1} of ${PROBLEMS.length}</span></div>
       <h1 class="title">${esc(p.title)}</h1>
-      <div class="fn-hint">${p.kind === "scenario" ? "Write a pytest test named" : p.kind === "class" ? "Implement" : "Implement"} <code>${esc(p.fn[lang])}</code> in ${ext[lang]}.</div>
+      <div class="fn-hint">${p.kind === "scenario" ? "Write a pytest test named" : "Implement"} <code>${esc(p.fn[lang])}</code> in ${ext[lang]}.</div>
       ${fallback ? `<div class="note">${esc(p.note || "This problem is Python-only.")} Showing the Python version.</div>` : ""}
       <div class="card"><div class="card-head">Examples</div><div class="card-body">${examples}</div></div>
 
@@ -222,7 +331,7 @@
         <div class="card-body">
           <div id="editorHost"></div>
           <div class="toolbar" style="margin-top:10px">
-            ${canRun ? `<button class="btn primary" id="runBtn">▶ Run <span class="muted" style="color:inherit;opacity:.75;font-size:12px">Ctrl+Enter</span></button>` : ""}
+            ${canRun ? `<button class="btn primary" id="runBtn">▶ Run <kbd>Ctrl Enter</kbd></button>` : ""}
             <button class="btn" id="resetBtn">Reset</button>
             ${!canRun ? `<span class="muted">${p.kind === "scenario" ? `Run locally with <code>pytest -k s${String(p.num)}</code>` : "This one needs a Spark session, so run it locally with <code>pytest tests/test_data.py</code>"}.</span>` : ""}
             <label class="check" style="margin:0 0 0 auto"><input type="checkbox" id="manualSolved" ${state.solved.has(p.id) ? "checked" : ""}> Mark solved</label>
@@ -240,8 +349,8 @@
       </div>
 
       <div class="nav-row">
-        ${prev ? `<a class="btn" href="#${prev.id}" style="text-decoration:none">← ${esc(prev.title.slice(0, 32))}</a>` : "<span></span>"}
-        ${next ? `<a class="btn" href="#${next.id}" style="text-decoration:none">${esc(next.title.slice(0, 32))} →</a>` : ""}
+        ${prev ? `<a class="btn" href="#${prev.id}">← ${esc(prev.title.slice(0, 32))}</a>` : "<span></span>"}
+        ${next ? `<a class="btn" href="#${next.id}">${esc(next.title.slice(0, 32))} →</a>` : ""}
       </div>`;
 
     const status = $("#status");
@@ -369,6 +478,7 @@
   }
 
   /* ---------------------------------------------------------- playground */
+  let pgEditor = null;
   function renderPlayground() {
     const lang = state.lang;
     const samples = window.SAMPLES[lang];
@@ -376,15 +486,13 @@
     const savedCode = store.get(key, null);
     view.playground.innerHTML = `
       <h1 class="title">Playground</h1>
-      <p class="muted" style="margin-top:0">Write and run any ${ext[lang]} program right in your browser. The language follows the selector at the top right.</p>
-      <div class="card"><div class="card-head">${ext[lang]}
-        <select id="sampleSel" aria-label="Load a sample">${samples.map((s, i) => `<option value="${i}">${esc(s.name)}</option>`).join("")}</select>
-        <span class="status" id="pgStatus"></span></div>
+      <p class="muted" style="margin-top:0">Write and run any ${ext[lang]} program right in your browser. The language follows the selector at the top right; starter programs are in the list on the left.</p>
+      <div class="card"><div class="card-head">${ext[lang]}<span class="status" id="pgStatus"></span></div>
         <div class="card-body">
           <div id="pgEditor"></div>
           ${lang === "py" ? `<details class="stdin"><summary>Input for <code>input()</code> (one line per call)</summary><textarea id="stdin" placeholder="Vijay"></textarea></details>` : ""}
           <div class="toolbar" style="margin-top:10px">
-            <button class="btn primary" id="pgRun">▶ Run <span style="opacity:.75;font-size:12px">Ctrl+Enter</span></button>
+            <button class="btn primary" id="pgRun">▶ Run <kbd>Ctrl Enter</kbd></button>
             <button class="btn danger" id="pgStop" disabled>■ Stop</button>
             <button class="btn" id="pgClear">Clear output</button>
             <button class="btn" id="pgReset">Reset to sample</button>
@@ -392,12 +500,12 @@
         </div></div>
       <div class="card"><div class="card-head">Output</div><div class="card-body"><pre class="console" id="pgOut" aria-live="polite"><span class="meta">Press Run to see the output here.</span></pre></div></div>`;
 
-    const editor = createEditor($("#pgEditor"), {
+    const editor = pgEditor = createEditor($("#pgEditor"), {
       value: savedCode !== null ? savedCode : samples[0].code, lang, tall: true,
       onChange: (v) => store.set(key, v), onRun: run,
     });
-    $("#sampleSel").addEventListener("change", (e) => editor.set(samples[Number(e.target.value)].code));
-    $("#pgReset").addEventListener("click", () => { $("#sampleSel").value = "0"; editor.set(samples[0].code); });
+    $("#sampleList").innerHTML = samples.map((s, i) => `<li><button data-i="${i}"><span class="t">${esc(s.name)}</span></button></li>`).join("");
+    $("#pgReset").addEventListener("click", () => editor.set(samples[0].code));
     $("#pgClear").addEventListener("click", () => { $("#pgOut").innerHTML = ""; });
     const runBtn = $("#pgRun"), stopBtn = $("#pgStop"), status = $("#pgStatus"), out = $("#pgOut");
     runBtn.addEventListener("click", run);
@@ -419,8 +527,14 @@
       out.innerHTML = html;
     }
   }
+  $("#sampleList").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-i]");
+    if (!b || !pgEditor) return;
+    pgEditor.set(window.SAMPLES[state.lang][Number(b.dataset.i)].code);
+    closeMenu();
+  });
 
-  /* --------------------------------------------------------- cheat sheet */
+  /* ------------------------------------------------------------ cheat sheet */
   const CS = { section: store.get("qa.csSection", "all"), query: "" };
   const CS_DATA = window.CHEATSHEET || [];
 
@@ -430,6 +544,22 @@
     return { block: entry.code.js, lang: "ts", fallback: true };   // JavaScript is valid TypeScript
   }
   const slug = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+  function csMatches(entry, lang) {
+    if (!CS.query) return true;
+    const { block } = csBlock(entry, lang);
+    return (entry.title + " " + entry.desc + " " + entry.notes.join(" ") + " " + block.code).toLowerCase().includes(CS.query);
+  }
+
+  function renderCheatSide() {
+    const lang = state.lang;
+    const total = CS_DATA.reduce((n, s) => n + s.entries.length, 0);
+    const counts = CS_DATA.map((s) => s.entries.filter((e) => csMatches(e, lang)).length);
+    const shown = counts.reduce((a, b) => a + b, 0);
+    $("#csChips").innerHTML = `<li><button data-sec="all" ${CS.section === "all" ? 'aria-current="true"' : ""}><span class="t">All sections</span><span class="count">${shown}</span></button></li>`
+      + CS_DATA.map((s, i) => `<li><button data-sec="${slug(s.title)}" ${CS.section === slug(s.title) ? 'aria-current="true"' : ""}><span class="t">${esc(s.title)}</span><span class="count">${counts[i]}</span></button></li>`).join("");
+    $("#sideSub").textContent = CS.query ? `${shown} of ${total}` : `${total} entries`;
+  }
 
   function renderCheatsheet() {
     const lang = state.lang;
@@ -442,54 +572,26 @@
       <h1 class="title">Cheat sheet <span class="badge">${ext[lang]}</span></h1>
       <p class="muted" style="margin-top:0">Concepts and methods with working examples, side by side for ${ext[lang]}.
         Switch the language at the top right. Press <b>Run</b> to execute an example in your browser.</p>
-      <div class="cs-bar">
-        <input id="csSearch" type="search" placeholder="Search ${total} entries… (try “sort”, “regex”, “async”)" aria-label="Search the cheat sheet" value="${esc(CS.query)}" autocomplete="off">
-        <div class="chips" id="csChips" role="group" aria-label="Sections">
-          <button class="chip" data-sec="all" aria-pressed="${CS.section === "all"}">All <span>${total}</span></button>
-          ${CS_DATA.map((s) => `<button class="chip" data-sec="${slug(s.title)}" aria-pressed="${CS.section === slug(s.title)}">${esc(s.title)} <span>${s.entries.length}</span></button>`).join("")}
-        </div>
-      </div>
-      <div class="muted" id="csCount" style="margin:10px 0 0">${shown} of ${total} entries</div>
+      <div class="muted" id="csCount">${shown} of ${total} entries</div>
       <div id="csBody">${sections.length ? sections.map(({ sec, entries }) => `
         <h2 class="cs-section" id="sec-${slug(sec.title)}">${esc(sec.title)}</h2>
         ${entries.map((e) => csCard(e, lang)).join("")}`).join("") : `<div class="card"><div class="card-body muted">Nothing matches “${esc(CS.query)}”.</div></div>`}
       </div>`;
-
-    $("#csSearch").addEventListener("input", (e) => {
-      CS.query = e.target.value.trim().toLowerCase();
-      const pos = e.target.selectionStart;
-      renderCheatsheet();
-      const box = $("#csSearch");
-      box.focus();
-      box.setSelectionRange(pos, pos);
-    });
-    $("#csChips").addEventListener("click", (e) => {
-      const b = e.target.closest("[data-sec]");
-      if (!b) return;
-      CS.section = b.dataset.sec;
-      store.set("qa.csSection", CS.section);
-      renderCheatsheet();
-    });
     view.cheatsheet.onclick = csClick;
-  }
-
-  function csMatches(entry, lang) {
-    if (!CS.query) return true;
-    const { block } = csBlock(entry, lang);
-    return (entry.title + " " + entry.desc + " " + entry.notes.join(" ") + " " + block.code).toLowerCase().includes(CS.query);
+    renderCheatSide();
   }
 
   function csCard(entry, lang) {
     const { block, lang: codeLang, fallback } = csBlock(entry, lang);
     const key = slug(entry.title);
     const hl = highlight(block.code, codeLang === "py" ? "py" : "js");
-    return `<article class="card cs-entry" data-key="${key}" data-lang="${codeLang}">
+    return `<article class="card cs-entry" data-key="${key}" data-lang="${codeLang}" id="cs-${key}">
       <div class="card-head"><h3>${esc(entry.title)}</h3>
         <span class="status">${fallback ? '<span class="badge" title="No TypeScript-specific version: the JavaScript code is valid TypeScript">same as JavaScript</span> ' : ""}${block.run ? "" : '<span class="badge" title="Needs Node.js, a network, or a real browser, so it cannot run on this page">view only</span>'}</span></div>
       <div class="card-body">
         ${entry.desc ? `<p style="margin-top:0">${esc(entry.desc)}</p>` : ""}
         <pre class="code">${hl}</pre>
-        ${block.out.length ? `<div class="cs-out-label muted">Output</div><pre class="code cs-expected">${esc(block.out.join("\n"))}</pre>` : ""}
+        ${block.out.length ? `<div class="cs-out-label">Output</div><pre class="code cs-expected">${esc(block.out.join("\n"))}</pre>` : ""}
         ${entry.notes.map((n) => `<div class="note">${esc(n)}</div>`).join("")}
         <div class="toolbar" style="margin-top:10px">
           ${block.run ? `<button class="btn primary" data-act="run">▶ Run</button>` : ""}
@@ -537,48 +639,155 @@
     }
   }
 
+  $("#csSearch").addEventListener("input", (e) => {
+    CS.query = e.target.value.trim().toLowerCase();
+    if (state.view === "cheatsheet") renderCheatsheet();
+  });
+  $("#csChips").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-sec]");
+    if (!b) return;
+    CS.section = b.dataset.sec;
+    store.set("qa.csSection", CS.section);
+    renderCheatsheet();
+    closeMenu();
+    $("#main").scrollTop = 0;
+  });
+
+  /* --------------------------------------------------------- quick switcher */
+  const QS = { items: [], sel: 0, index: null };
+  const qs = $("#qs"), qsInput = $("#qsInput"), qsList = $("#qsList");
+
+  function qsIndex() {
+    if (QS.index) return QS.index;
+    const pages = [
+      { kind: "Page", title: "Home", sub: "Dashboard and progress", go: "#home" },
+      { kind: "Page", title: "Cheat sheet", sub: "Concepts and methods with examples", go: "#cheatsheet" },
+      { kind: "Page", title: "Playground", sub: "Run any program in your browser", go: "#playground" },
+    ];
+    const commands = [
+      { kind: "Command", title: "Toggle dark mode", sub: "Switch between light and dark", run: () => applyMode(root.getAttribute("data-theme") === "dark" ? "light" : "dark") },
+      { kind: "Command", title: "Choose a colour theme", sub: "Aubergine, Ochin, Monument, Hoth…", run: () => setPalette(true) },
+      ...Object.entries(LANGS).map(([k, v]) => ({ kind: "Command", title: `Use ${v}`, sub: "Switch the language", run: () => setLang(k) })),
+    ];
+    const problems = PROBLEMS.map((p) => ({ kind: "Problem", title: p.title, sub: `#${pad3(p.num)} · ${CAT_LABEL[p.category]}`, go: `#${p.id}`, hay: `${p.title} ${p.fn.py} ${pad3(p.num)} ${CAT_LABEL[p.category]}` }));
+    const cheats = CS_DATA.flatMap((s) => s.entries.map((e) => ({ kind: "Cheat", title: e.title, sub: `Cheat sheet · ${s.title}`, go: `#cheatsheet/${slug(e.title)}`, hay: `${e.title} ${s.title} ${e.desc}` })));
+    QS.index = [...pages, ...commands, ...problems, ...cheats].map((it) => ({ ...it, hay: (it.hay || it.title + " " + it.sub).toLowerCase() }));
+    return QS.index;
+  }
+  function qsSearch(q) {
+    const all = qsIndex();
+    const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!tokens.length) return all.filter((i) => i.kind === "Page" || i.kind === "Command").slice(0, 9);
+    const out = [];
+    for (const it of all) {
+      if (!tokens.every((t) => it.hay.includes(t))) continue;
+      const title = it.title.toLowerCase();
+      const score = tokens.reduce((s, t) => s + (title.startsWith(t) ? 0 : title.includes(t) ? 1 : 2), 0) + (it.kind === "Problem" ? 0.2 : 0);
+      out.push({ it, score });
+    }
+    return out.sort((a, b) => a.score - b.score || a.it.title.length - b.it.title.length).slice(0, 12).map((x) => x.it);
+  }
+  function qsRender() {
+    QS.items = qsSearch(qsInput.value);
+    QS.sel = 0;
+    qsList.innerHTML = QS.items.length
+      ? QS.items.map((it, i) => `<li class="qs-item" id="qs-${i}" role="option" data-i="${i}" aria-selected="${i === 0}"><span class="kind">${esc(it.kind)}</span><span><span class="t">${esc(it.title)}</span><span class="s">${esc(it.sub)}</span></span></li>`).join("")
+      : `<li class="qs-empty">Nothing found. Try “sort”, “regex” or a problem number.</li>`;
+  }
+  function qsMove(d) {
+    if (!QS.items.length) return;
+    QS.sel = (QS.sel + d + QS.items.length) % QS.items.length;
+    $$(".qs-item", qsList).forEach((el, i) => el.setAttribute("aria-selected", String(i === QS.sel)));
+    const el = $(`#qs-${QS.sel}`);
+    if (el) { el.scrollIntoView({ block: "nearest" }); qsInput.setAttribute("aria-activedescendant", el.id); }
+  }
+  function qsOpen() { setPalette(false); qs.hidden = false; qsInput.value = ""; qsRender(); qsInput.focus(); }
+  function qsClose() { qs.hidden = true; }
+  function qsGo(it) {
+    if (!it) return;
+    qsClose();
+    if (it.run) it.run(); else location.hash = it.go;
+  }
+  $("#quickBtn").addEventListener("click", qsOpen);
+  qsInput.addEventListener("input", qsRender);
+  qsInput.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); qsMove(1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); qsMove(-1); }
+    else if (e.key === "Enter") { e.preventDefault(); qsGo(QS.items[QS.sel]); }
+  });
+  qsList.addEventListener("click", (e) => { const li = e.target.closest(".qs-item"); if (li) qsGo(QS.items[Number(li.dataset.i)]); });
+  qsList.addEventListener("mousemove", (e) => {
+    const li = e.target.closest(".qs-item");
+    if (li && Number(li.dataset.i) !== QS.sel) { QS.sel = Number(li.dataset.i); $$(".qs-item", qsList).forEach((el, i) => el.setAttribute("aria-selected", String(i === QS.sel))); }
+  });
+  qs.addEventListener("mousedown", (e) => { if (e.target === qs) qsClose(); });
+  document.addEventListener("keydown", (e) => {
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); qs.hidden ? qsOpen() : qsClose(); }
+    else if (e.key === "/" && !typing && qs.hidden) { e.preventDefault(); qsOpen(); }
+    else if (e.key === "Escape") { if (!qs.hidden) qsClose(); else if (!palette.hidden) setPalette(false); }
+  });
+
   /* ---------------------------------------------------------------- router */
+  const SIDE = { home: ["Problems", "Problems"], problems: ["Problems", "Problems"], cheatsheet: ["Cheat", "Cheat sheet"], playground: ["Play", "Playground"] };
+  const TAB_FOR = { home: "home", problems: "problems", cheatsheet: "cheatsheet", playground: "playground" };
+
   function render() {
     syncLangUi();
-    $$(".tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.view === state.view)));
-    view.problems.hidden = state.view !== "problems";
-    view.cheatsheet.hidden = state.view !== "cheatsheet";
-    view.playground.hidden = state.view !== "playground";
-    $(".layout").classList.toggle("no-side", state.view !== "problems");
     document.body.dataset.view = state.view;
+    $$(".tab").forEach((t) => {
+      const on = t.dataset.view === TAB_FOR[state.view];
+      t.setAttribute("aria-selected", String(on));
+      if (on) t.setAttribute("aria-current", "page"); else t.removeAttribute("aria-current");
+    });
+    Object.entries(view).forEach(([k, el]) => { el.hidden = k !== state.view; });
+    const [ctx, title] = SIDE[state.view];
+    ["Problems", "Cheat", "Play"].forEach((c) => { $("#ctx" + c).hidden = c !== ctx; });
+    $("#sideTitle").textContent = title;
     state.revealed = false;
+
     if (state.view === "playground") {
       document.title = "Playground · QA Interview Playground";
+      $("#sideSub").textContent = ext[state.lang];
       renderPlayground();
     } else if (state.view === "cheatsheet") {
       document.title = "Cheat sheet · QA Interview Playground";
       renderCheatsheet();
-    } else if (state.current && BY_ID[state.current]) {
+    } else if (state.view === "problems" && state.current && BY_ID[state.current]) {
       const p = BY_ID[state.current];
       document.title = `${p.title} · QA Interview Playground`;
+      $("#sideSub").textContent = `${PROBLEMS.length} problems`;
       renderProblem(p);
     } else {
       document.title = "QA Interview Playground";
-      renderWelcome();
+      $("#sideSub").textContent = `${PROBLEMS.length} problems`;
+      renderHome();
     }
     renderList();
     $("#main").scrollTop = 0;
   }
+
   function route() {
-    const h = location.hash.replace(/^#/, "");
-    if (h === "playground") { state.view = "playground"; }
-    else if (h === "cheatsheet") { state.view = "cheatsheet"; }
-    else { state.view = "problems"; state.current = BY_ID[h] ? h : null; }
+    const [head, tail] = location.hash.replace(/^#/, "").split("/");
+    if (head === "playground") state.view = "playground";
+    else if (head === "cheatsheet") state.view = "cheatsheet";
+    else if (BY_ID[head]) { state.view = "problems"; state.current = head; }
+    else { state.view = "home"; state.current = null; }
     state.token++;
     closeMenu();
+    if (state.view === "cheatsheet" && tail) { CS.section = "all"; CS.query = ""; $("#csSearch").value = ""; }
     render();
+    if (state.view === "cheatsheet" && tail) {
+      const card = $(`#cs-${tail}`);
+      if (card) { card.scrollIntoView({ block: "start" }); card.classList.add("flash"); }
+    }
   }
+
   $$(".tab").forEach((t) => t.addEventListener("click", () => {
-    if (t.dataset.view === "playground" || t.dataset.view === "cheatsheet") location.hash = t.dataset.view;
-    else location.hash = state.current || "";
-    if (t.dataset.view === "problems" && !state.current) route();
+    const v = t.dataset.view;
+    location.hash = v === "problems" ? (state.current || store.get("qa.last", "p001")) : v;
   }));
-  $("#brand").addEventListener("click", (e) => { e.preventDefault(); state.current = null; history.replaceState(null, "", location.pathname); route(); });
+  $("#brand").addEventListener("click", (e) => { e.preventDefault(); location.hash = "home"; if (state.view === "home") route(); });
   window.addEventListener("hashchange", route);
 
   renderChips();

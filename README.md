@@ -6,7 +6,10 @@ solution and an explanation you reveal only when you ask for it.
 
 | | |
 |---|---|
-| Light / dark mode | Follows your system, with a toggle in the header |
+| Slack-style layout | Icon rail, a sidebar that follows the section you are in (problems, cheat-sheet sections, playground starters), and a top bar with search. On phones the rail becomes a bottom bar and the sidebar a drawer |
+| Colour themes | Six Slack-inspired themes (Aubergine, Ochin, Monument, Hoth, Choco Mint, Sweet Treat), each in light and dark, plus *System* mode. Pick them from the palette button; all combinations are tested for WCAG AA contrast |
+| Quick search | **Ctrl+K** (or `/`) jumps to any problem, cheat-sheet entry or page, and runs commands such as *Toggle dark mode* or *Use TypeScript* |
+| Dashboard | A home page with your progress overall and by topic, a *Continue* button and your recently solved problems |
 | Language switch | Python · JavaScript · TypeScript (header, top right) |
 | Solve in the browser | Write code, press **Run**, get checked against the examples (Python via [Pyodide](https://pyodide.org), JS natively, TS transpiled in the browser) |
 | Solution on demand | **Reveal solution & explanation** keeps the answer hidden until clicked; includes *Run this solution* |
@@ -84,7 +87,8 @@ content/demos.py   Short runnable demos for classes / decorators (MinStack, retr
 content/cheatsheet/ The cheat sheet, as plain text (see "Adding a cheat-sheet entry")
 tests/             Runs every @case example, plus tests for classes, decorators and PySpark
 tools/             build_site.py (generates web/data), export_cases.py, check_ts.mjs, cheatsheet.py, check_cheatsheet.mjs, e2e.mjs
-web/               The static site that Vercel serves (index.html, app.js, runner.js, ...)
+web/               The static site that Vercel serves (index.html, app.js, runner.js, styles.css, ...)
+web/fonts/         Lato (SIL Open Font License, see LICENSE-Lato-OFL.txt), self-hosted so no font CDN is needed
 web/data/          GENERATED: problems.js, bundles.js and cheatsheet.js. Commit these; Vercel does not run Python
 ```
 
