@@ -130,7 +130,7 @@ Order by the path so the output reads as a tree.
 @solution
 WITH RECURSIVE org AS (
     SELECT emp_id, emp_name, manager_id, 1 AS level,
-           emp_name AS path
+           CAST(emp_name AS TEXT) AS path
     FROM employees
     WHERE manager_id IS NULL
 
@@ -342,7 +342,7 @@ Indent the name by the level for readability.
 @solution
 WITH RECURSIVE org AS (
     SELECT emp_id, emp_name, manager_id, 1 AS level,
-           ARRAY[emp_name] AS sort_path
+           ARRAY[CAST(emp_name AS TEXT)] AS sort_path
     FROM employees
     WHERE manager_id IS NULL
 

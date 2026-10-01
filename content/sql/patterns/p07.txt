@@ -286,6 +286,7 @@ Divide to get the cumulative share and flag the first row where it reaches 0.8.
 @solution
 WITH cum AS (
     SELECT product_id,
+           sale_id,
            sale_date,
            quantity,
            SUM(quantity) OVER (PARTITION BY product_id

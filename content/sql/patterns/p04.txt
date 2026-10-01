@@ -281,12 +281,18 @@ Compute the absolute difference between the employee's salary and that median.
 Rank employees within each department by that distance ascending.
 Keep the closest one per department.
 @solution
-WITH with_median AS (
-    SELECT emp_id, emp_name, dept_id, salary,
-           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY salary)
-             OVER (PARTITION BY dept_id) AS median_salary
+WITH medians AS (
+    SELECT dept_id,
+           CAST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY salary) AS NUMERIC) AS median_salary
     FROM employees
     WHERE salary IS NOT NULL
+    GROUP BY dept_id
+),
+with_median AS (
+    SELECT e.emp_id, e.emp_name, e.dept_id, e.salary, m.median_salary
+    FROM employees AS e
+    JOIN medians AS m ON m.dept_id IS NOT DISTINCT FROM e.dept_id
+    WHERE e.salary IS NOT NULL
 ),
 scored AS (
     SELECT *,
@@ -300,6 +306,6 @@ FROM scored
 WHERE closeness = 1
 ORDER BY dept_id, emp_name;
 @explanation
-PERCENTILE_CONT used as a window attaches an aggregate to every row without collapsing them, so the distance can be computed at row level. RANK rather than ROW_NUMBER is deliberate: two employees equidistant above and below the median are genuinely tied and both should be returned.
+Computing the median once per department and joining it back attaches that aggregate to every row without collapsing them, so the distance can be computed at row level. RANK rather than ROW_NUMBER is deliberate: two employees equidistant above and below the median are genuinely tied and both should be returned.
 @dialect
-PERCENTILE_CONT as a window function is PostgreSQL / Oracle / Snowflake. MySQL 8 and SQL Server: compute the median in a separate grouped CTE and join it back.
+PostgreSQL has no windowed PERCENTILE_CONT (it is an ordered-set aggregate), so compute it with GROUP BY (cast to NUMERIC if you want to ROUND it) in a CTE and join it back, as here. SQL Server, Oracle and Snowflake can attach it directly with OVER (PARTITION BY ...). MySQL 8 has no PERCENTILE_CONT: derive the median with ROW_NUMBER and COUNT.

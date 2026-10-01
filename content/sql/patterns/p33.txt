@@ -248,11 +248,16 @@ COALESCE each employee's salary to that median.
 Aggregate both the raw and the imputed averages per department.
 Report how many values were imputed so the reader can weigh the result.
 @solution
-WITH imputed AS (
-    SELECT emp_id, dept_id, salary,
-           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY salary)
-             OVER (PARTITION BY dept_id) AS dept_median
+WITH medians AS (
+    SELECT dept_id,
+           CAST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY salary) AS NUMERIC) AS dept_median
     FROM employees
+    GROUP BY dept_id
+),
+imputed AS (
+    SELECT e.emp_id, e.dept_id, e.salary, m.dept_median
+    FROM employees AS e
+    JOIN medians AS m ON m.dept_id IS NOT DISTINCT FROM e.dept_id
 )
 SELECT dept_id,
        COUNT(*)                                        AS headcount,
@@ -268,7 +273,7 @@ ORDER BY imputed_pct DESC;
 @explanation
 Median imputation keeps the sample size without dragging the centre the way zero-filling would, but it artificially shrinks the variance — so the imputed_pct column is not decoration, it is the caveat. A department at 40% imputed should not have its average quoted without that number beside it.
 @dialect
-PERCENTILE_CONT as a window is PostgreSQL / Oracle / Snowflake. MySQL 8 and SQL Server: compute medians in a grouped CTE and join back.
+PostgreSQL has no windowed PERCENTILE_CONT (it is an ordered-set aggregate), so compute the medians with GROUP BY (cast to NUMERIC if you want to ROUND them) in a CTE and join them back, as here. SQL Server, Oracle and Snowflake can attach it directly with OVER (PARTITION BY ...). MySQL 8 has no PERCENTILE_CONT: derive the median with ROW_NUMBER and COUNT.
 @@@ q10 hard
 tables: customers
 @prompt

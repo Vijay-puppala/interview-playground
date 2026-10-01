@@ -192,6 +192,7 @@ ORDER BY top_1_revenue DESC;
 Pivoting on a rank instead of a data value sidesteps the dynamic-column problem entirely, because the rank set is fixed by the query rather than by the data. MAX is used purely as a "pick the one non-NULL" operator, which works because only one row per group satisfies each CASE.
 @@@ q7 hard
 tables: sales
+run: no
 @prompt
 Write the same quarterly pivot using the vendor PIVOT operator, and say what it cannot do.
 @think

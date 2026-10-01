@@ -90,6 +90,7 @@ SELECT (
 This is the exact shape the classic LeetCode phrasing expects. The scalar-subquery wrapper is a general technique: it converts "zero or one rows" into "always one row, possibly NULL", which is what report consumers usually need.
 @@@ q4 medium
 tables: employees
+params: n=2
 @prompt
 Find the Nth highest salary with N as a parameter, using DENSE_RANK.
 @think

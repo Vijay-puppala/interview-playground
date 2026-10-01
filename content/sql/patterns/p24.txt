@@ -118,7 +118,7 @@ Collapse the resulting pairs to one row per customer.
 Count how many overlapping pairs each customer has.
 Return the earliest overlap so it can be investigated.
 @solution
-WITH overlaps AS (
+WITH overlap_rows AS (
     SELECT a.customer_id,
            GREATEST(a.start_date, b.start_date) AS overlap_from,
            LEAST(COALESCE(a.end_date, DATE '9999-12-31'),
@@ -134,7 +134,7 @@ SELECT customer_id,
        COUNT(*)          AS overlapping_pairs,
        MIN(overlap_from) AS first_overlap,
        MAX(overlap_to)   AS last_overlap
-FROM overlaps
+FROM overlap_rows
 GROUP BY customer_id
 ORDER BY overlapping_pairs DESC;
 @explanation
@@ -336,15 +336,18 @@ blocks AS (
            MAX(end_date)   AS block_end
     FROM blocked
     GROUP BY customer_id, block_id
+),
+paired AS (
+    SELECT customer_id, block_end,
+           LEAD(block_start) OVER (PARTITION BY customer_id ORDER BY block_start) AS next_start
+    FROM blocks
 )
 SELECT customer_id,
-       block_end + 1 AS gap_starts,
-       LEAD(block_start) OVER (PARTITION BY customer_id ORDER BY block_start) - 1 AS gap_ends,
-       LEAD(block_start) OVER (PARTITION BY customer_id ORDER BY block_start)
-     - block_end - 1 AS gap_days
-FROM blocks
-WHERE LEAD(block_start) OVER (PARTITION BY customer_id ORDER BY block_start) IS NOT NULL
-  AND LEAD(block_start) OVER (PARTITION BY customer_id ORDER BY block_start) > block_end + 1
+       block_end + 1              AS gap_starts,
+       next_start - 1             AS gap_ends,
+       next_start - block_end - 1 AS gap_days
+FROM paired
+WHERE next_start > block_end + 1
 ORDER BY gap_days DESC;
 @explanation
 Merging first is essential: without it, overlapping subscriptions would produce phantom gaps between ranges that were actually concurrent. The +1 and −1 adjustments make the gap the set of days genuinely uncovered, rather than including the boundary days that were covered.

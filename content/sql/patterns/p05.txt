@@ -207,6 +207,7 @@ ORDER BY customer_id, product_id;
 DENSE_RANK is right here because "2nd-most-frequent" describes a frequency value, not a product. Several products may tie at that frequency and all of them belong in the answer — ROW_NUMBER would have arbitrarily returned one.
 @@@ q8 hard
 tables: employees
+params: n=2
 @prompt
 Write a parameterised query returning the Nth highest salary, with N supplied as a bind variable, and make it return NULL rather than no rows when N exceeds the number of distinct salaries.
 @think

@@ -13,6 +13,8 @@ File format (plain text, so SQL needs no escaping):
     - one mistake per line
     @@@ q1 easy                      <- question 1, difficulty easy|medium|hard
     tables: sales, orders
+    params: n=2                      <- optional: values for :named bind parameters in the SQL
+    run: no                          <- optional: show the solution but never execute it
     @prompt / @think / @hint / @approach / @solution / @explanation / @dialect (optional)
     free text (the SQL for @solution) up to the next marker line
 
@@ -29,7 +31,7 @@ SQL_DIR = ROOT / "content" / "sql"
 HEADER = re.compile(r"^@@ pattern (\d+) (\S+)$")
 QUESTION = re.compile(r"^@@@ q(\d+) (easy|medium|hard)$")
 FIELD = re.compile(r"^@(theory|pitfalls|prompt|think|hint|approach|solution|explanation|dialect)$")
-KV = re.compile(r"^(title|concept|category|tagline|tables): (.*)$")
+KV = re.compile(r"^(title|concept|category|tagline|tables|params|run): (.*)$")
 QUESTION_FIELDS = ("prompt", "think", "hint", "approach", "solution", "explanation", "dialect")
 
 
@@ -65,7 +67,14 @@ def parse_pattern(text: str, source: str = "") -> dict:
             buf.append(line)
         elif (m := KV.match(line)):
             key, value = m.groups()
-            target[key] = [t.strip() for t in value.split(",")] if key == "tables" else value
+            if key == "tables":
+                target[key] = [t.strip() for t in value.split(",")]
+            elif key == "params":      # bind parameters used by the solution, e.g. "n=2, region='West'"
+                target[key] = dict(part.strip().split("=", 1) for part in value.split(","))
+            elif key == "run":         # "no" = shown, but never executed (vendor-specific syntax)
+                target["runnable"] = value.strip().lower() != "no"
+            else:
+                target[key] = value
         elif line.strip():
             raise ValueError(f"{source}:{n}: unexpected line outside a section: {line[:60]!r}")
     flush()
@@ -79,6 +88,23 @@ def _strip_final_newline(pattern: dict) -> dict:
     if q[key].endswith("\n"):
         q[key] = q[key][:-1]
     return pattern
+
+
+def dump_pattern(p: dict) -> str:
+    """Inverse of parse_pattern: the canonical text for a pattern (used to apply content fixes safely)."""
+    out = [f"@@ pattern {p['num']} {p['slug']}", f"title: {p['title']}", f"concept: {p['concept']}",
+           f"category: {p['category']}", f"tagline: {p['tagline']}", "@theory", p["theory"], "@pitfalls"]
+    out += [f"- {x}" for x in p["pitfalls"]]
+    for i, q in enumerate(p["questions"], 1):
+        out += [f"@@@ q{i} {q['difficulty']}", f"tables: {', '.join(q['tables'])}"]
+        if q.get("params"):
+            out.append("params: " + ", ".join(f"{k}={v}" for k, v in q["params"].items()))
+        if q.get("runnable") is False:
+            out.append("run: no")
+        for field in QUESTION_FIELDS:
+            if field in q:
+                out += [f"@{field}", q[field]]
+    return "\n".join(out) + "\n"
 
 
 def load_patterns() -> list[dict]:

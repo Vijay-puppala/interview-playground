@@ -321,7 +321,18 @@ Add a unique index on the normalised key rather than the raw column.
 Consider a partial index if NULLs should be allowed.
 Decide how the application should behave on conflict.
 @solution
--- 1. Deduplicate first (a unique index cannot be built over duplicates).
+-- 1. Deduplicate first (a unique index cannot be built over duplicates): keep the lowest id per normalised e-mail.
+DELETE FROM customers
+WHERE customer_id IN (
+    SELECT customer_id
+    FROM (
+        SELECT customer_id,
+               ROW_NUMBER() OVER (PARTITION BY LOWER(TRIM(email)) ORDER BY customer_id) AS rn
+        FROM customers
+        WHERE email IS NOT NULL
+    ) AS ranked
+    WHERE rn > 1
+);
 
 -- 2. Enforce uniqueness on the NORMALISED key, not the raw column:
 CREATE UNIQUE INDEX customers_email_uniq

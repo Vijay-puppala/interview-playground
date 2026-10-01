@@ -277,14 +277,21 @@ Rank employees by salary descending within the department.
 Keep rank 1.
 Compare the top salary against twice the median.
 @solution
-WITH stats AS (
-    SELECT emp_id, emp_name, dept_id, salary,
-           DENSE_RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS lvl,
-           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY salary)
-             OVER (PARTITION BY dept_id) AS median_salary,
-           COUNT(*) OVER (PARTITION BY dept_id) AS headcount
+WITH medians AS (
+    SELECT dept_id,
+           CAST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY salary) AS NUMERIC) AS median_salary
     FROM employees
     WHERE salary IS NOT NULL
+    GROUP BY dept_id
+),
+stats AS (
+    SELECT e.emp_id, e.emp_name, e.dept_id, e.salary,
+           DENSE_RANK() OVER (PARTITION BY e.dept_id ORDER BY e.salary DESC) AS lvl,
+           m.median_salary,
+           COUNT(*) OVER (PARTITION BY e.dept_id) AS headcount
+    FROM employees AS e
+    JOIN medians AS m ON m.dept_id IS NOT DISTINCT FROM e.dept_id
+    WHERE e.salary IS NOT NULL
 )
 SELECT dept_id,
        emp_name AS top_earner,
@@ -300,7 +307,7 @@ ORDER BY ratio DESC;
 @explanation
 The median rather than the mean is the right comparator here, because one very high salary drags the mean towards itself and hides the very skew you are looking for. The headcount guard matters too — on a team of two the top earner is always above the median by construction.
 @dialect
-PERCENTILE_CONT as a window function is PostgreSQL / Oracle / Snowflake. MySQL 8 and SQL Server: compute the median in a grouped CTE and join it back.
+PostgreSQL has no windowed PERCENTILE_CONT (it is an ordered-set aggregate), so compute it with GROUP BY (cast to NUMERIC if you want to ROUND it) in a CTE and join it back, as here. SQL Server, Oracle and Snowflake can attach it directly with OVER (PARTITION BY ...). MySQL 8 has no PERCENTILE_CONT: derive the median with ROW_NUMBER and COUNT.
 @@@ q10 hard
 tables: employees
 @prompt
@@ -315,15 +322,22 @@ Rank ascending and descending so both extremes can be identified.
 Attach the median with a percentile window.
 Collapse to one row per department with conditional aggregation and compute the ratio.
 @solution
-WITH ranked AS (
-    SELECT emp_name, dept_id, salary,
-           ROW_NUMBER() OVER (PARTITION BY dept_id ORDER BY salary DESC, emp_id) AS rn_high,
-           ROW_NUMBER() OVER (PARTITION BY dept_id ORDER BY salary,      emp_id) AS rn_low,
-           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY salary)
-             OVER (PARTITION BY dept_id) AS median_salary,
-           COUNT(*) OVER (PARTITION BY dept_id) AS headcount
+WITH medians AS (
+    SELECT dept_id,
+           CAST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY salary) AS NUMERIC) AS median_salary
     FROM employees
     WHERE salary IS NOT NULL
+    GROUP BY dept_id
+),
+ranked AS (
+    SELECT e.emp_name, e.dept_id, e.salary,
+           ROW_NUMBER() OVER (PARTITION BY e.dept_id ORDER BY e.salary DESC, e.emp_id) AS rn_high,
+           ROW_NUMBER() OVER (PARTITION BY e.dept_id ORDER BY e.salary,      e.emp_id) AS rn_low,
+           m.median_salary,
+           COUNT(*) OVER (PARTITION BY e.dept_id) AS headcount
+    FROM employees AS e
+    JOIN medians AS m ON m.dept_id IS NOT DISTINCT FROM e.dept_id
+    WHERE e.salary IS NOT NULL
 )
 SELECT dept_id,
        headcount,
@@ -340,3 +354,5 @@ GROUP BY dept_id, headcount
 ORDER BY pay_ratio DESC;
 @explanation
 Numbering in both directions and keeping the rows that are first in either gives at most two rows per department, which conditional aggregation then collapses into one. In a department of one employee that single row is number 1 in both directions, so top and bottom are the same person and the ratio is 1 — correct, and worth pointing out.
+@dialect
+PostgreSQL has no windowed PERCENTILE_CONT (it is an ordered-set aggregate), so compute it with GROUP BY (cast to NUMERIC if you want to ROUND it) in a CTE and join it back, as here. SQL Server, Oracle and Snowflake can attach it directly with OVER (PARTITION BY ...). MySQL 8 has no PERCENTILE_CONT: derive the median with ROW_NUMBER and COUNT.
