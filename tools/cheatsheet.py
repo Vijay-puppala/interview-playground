@@ -9,6 +9,8 @@ File format (plain text, so code needs no escaping):
     @py            code block for Python   (also @js, @ts)
     print("hi")
     => hi          one expected output line per "=>" line ("=>" alone = empty line)
+    @sql           SQL block (runs on the in-browser PostgreSQL; shown for every language)
+                   expected output = header line "a | b" then one "x | y" line per row, NULL for null
     @js!           trailing "!" = shown but never executed (needs Node, network, a browser...)
 
 A @ts block is optional; when missing the site shows the JavaScript code for TypeScript too.
@@ -19,7 +21,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-BLOCK = re.compile(r"^@(py|js|ts)(!?)$")
+BLOCK = re.compile(r"^@(py|js|ts|sql)(!?)$")
 
 
 def parse_text(text: str, source: str = "") -> list[dict]:

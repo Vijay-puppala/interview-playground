@@ -2,13 +2,16 @@
  *   Python      -> Pyodide (CPython compiled to WebAssembly), loaded lazily from a CDN
  *   JavaScript  -> native, inside a worker
  *   TypeScript  -> transpiled with the TypeScript compiler (lazy CDN load), then run like JS
+ *   SQL         -> PGlite (PostgreSQL compiled to WebAssembly) via sql_engine.js, loaded lazily (~5 MB)
  * pandas / numpy are fetched on demand by Pyodide when the code imports them.
  */
 (function () {
   const PYODIDE_VERSION = "0.26.4";
+  const PGLITE_VERSION = "0.5.8";
   const URLS = Object.assign({
     pyodide: `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`,
     typescript: "https://cdn.jsdelivr.net/npm/typescript@5.4.5/lib/typescript.js",
+    pglite: `https://cdn.jsdelivr.net/npm/@electric-sql/pglite@${PGLITE_VERSION}/dist/index.js`,
   }, window.RUNNER_URLS || {});
 
   /* ---------------------------------------------------------------- JS worker */
@@ -120,8 +123,28 @@
     };
   `;
 
+  /* --------------------------------------------------------------- SQL worker */
+  const SQL_WORKER = `
+    let engine = null;
+    self.onmessage = async (e) => {
+      const m = e.data;
+      try {
+        if (m.mode === "init") {
+          const lib = await import(m.pgliteUrl);
+          const eng = await import(m.engineUrl);
+          engine = await eng.createEngine(lib.PGlite, m.setup);
+          self.postMessage({ id: m.id, ok: true });
+        } else {
+          self.postMessage(Object.assign({ id: m.id }, await engine.run(m.sql, { maxRows: m.maxRows })));
+        }
+      } catch (err) {
+        self.postMessage({ id: m.id, ok: false, error: String((err && err.message) || err) });
+      }
+    };
+  `;
+
   /* ------------------------------------------------------------- main thread */
-  const state = { py: null, js: null };
+  const state = { py: null, js: null, sql: null };
   let seq = 0;
   let onStatus = () => {};
 
@@ -172,6 +195,20 @@
     });
     return entry.ready;
   }
+  async function ensureSql() {
+    if (state.sql) return state.sql.ready;
+    const worker = spawn(SQL_WORKER);
+    const entry = { worker };
+    state.sql = entry;
+    onStatus("Starting PostgreSQL in your browser (first run only)…");
+    entry.ready = call(worker, {
+      mode: "init", pgliteUrl: URLS.pglite, engineUrl: new URL("sql_engine.js", location.href).href, setup: window.SQL_SETUP || "",
+    }, 120000, "sql").then((r) => {
+      if (!r.ok) { kill("sql"); throw new Error(r.error); }
+      return r;
+    });
+    return entry.ready;
+  }
   function ensureJs() {
     if (!state.js) state.js = { worker: spawn(JS_WORKER) };
     return state.js;
@@ -200,7 +237,24 @@
     }
   }
 
-  function stop(lang) { kill(lang === "py" ? "py" : "js"); }
+  /** Runs one SQL script on the in-browser Postgres. resolves the engine result (see sql_engine.js). */
+  let sqlQueue = Promise.resolve();
+  function sql(text, timeoutMs = 15000) {          // one query at a time: each runs in its own transaction
+    const job = sqlQueue.then(() => sqlRun(text, timeoutMs));
+    sqlQueue = job.catch(() => {});
+    return job;
+  }
+  async function sqlRun(text, timeoutMs) {
+    try {
+      await ensureSql();
+      onStatus("Running…");
+      return await call(state.sql.worker, { mode: "run", sql: text, maxRows: 200 }, timeoutMs, "sql");
+    } catch (err) {
+      return { ok: false, error: String(err && err.message ? err.message : err) };
+    }
+  }
 
-  window.Runner = { run, stop, setStatusHandler: (fn) => { onStatus = fn; }, PYODIDE_VERSION };
+  function stop(lang) { kill(lang === "py" ? "py" : lang === "sql" ? "sql" : "js"); }
+
+  window.Runner = { run, sql, stop, setStatusHandler: (fn) => { onStatus = fn; }, PYODIDE_VERSION };
 })();

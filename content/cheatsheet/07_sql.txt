@@ -1,0 +1,820 @@
+@@ SQL · Querying basics
+
+@@@ SELECT, WHERE and ORDER BY
+Pick columns, filter rows, sort the result. Without ORDER BY the row order is not guaranteed, so always sort when the order matters.
+@sql
+SELECT emp_name, salary
+FROM employees
+WHERE dept_id = 2 AND salary >= 100000
+ORDER BY salary DESC, emp_name
+LIMIT 3;
+=> emp_name | salary
+=> Casey Lin | 165000.00
+=> Ari Lowe | 125000.00
+=> Kai Moreno | 110000.00
+! SQL runs FROM, then WHERE, then SELECT, then ORDER BY. That is why a WHERE clause cannot use a column alias defined in SELECT.
+
+@@@ IN, BETWEEN and LIKE
+Three shortcuts for filtering. BETWEEN includes both ends. LIKE uses % for any run of characters and _ for exactly one.
+@sql
+SELECT product_name, category, price
+FROM products
+WHERE category IN ('Books', 'Office')
+  AND price BETWEEN 20 AND 50
+  AND product_name LIKE '%a%'
+ORDER BY product_id
+LIMIT 4;
+=> product_name | category | price
+=> Data Science Handbook | Books | 45.00
+=> SQL Patterns | Books | 39.00
+=> Atlas | Books | 25.00
+
+@@@ DISTINCT, LIMIT and OFFSET
+DISTINCT removes duplicate rows. LIMIT / OFFSET pages through results (always with ORDER BY).
+@sql
+SELECT DISTINCT country
+FROM customers
+ORDER BY country
+LIMIT 3 OFFSET 2;
+=> country
+=> France
+=> Germany
+=> India
+! Large OFFSETs are slow because the database still reads and discards the skipped rows. For deep pages filter on the last seen key instead (WHERE id > :last_id ORDER BY id LIMIT 20).
+
+@@@ Aliases and expressions
+Name computed columns with AS. An alias can be used in ORDER BY but not in WHERE.
+@sql
+SELECT emp_name,
+       salary,
+       ROUND(salary / 12, 2) AS monthly,
+       salary * 1.10         AS with_raise
+FROM employees
+WHERE salary IS NOT NULL
+ORDER BY salary DESC
+LIMIT 2;
+=> emp_name | salary | monthly | with_raise
+=> Avery Quinn | 250000.00 | 20833.33 | 275000.0000
+=> Blake Reed | 180000.00 | 15000.00 | 198000.0000
+
+@@@ CASE WHEN
+SQL's if / else. Every branch is checked in order; the first match wins. Without ELSE the result is NULL.
+@sql
+SELECT order_id, amount,
+       CASE WHEN amount >= 300 THEN 'large'
+            WHEN amount >= 150 THEN 'medium'
+            ELSE 'small' END AS size
+FROM orders
+ORDER BY order_id
+LIMIT 4;
+=> order_id | amount | size
+=> 1 | 57.00 | small
+=> 2 | 94.00 | small
+=> 3 | 131.00 | small
+=> 4 | 168.00 | medium
+
+@@@ NULL handling
+NULL means unknown, so NULL = NULL is not true. Use IS NULL, and COALESCE to supply a default.
+@sql
+SELECT emp_name,
+       manager_id,
+       manager_id IS NULL                AS is_top,
+       COALESCE(manager_id, 0)           AS manager_or_zero,
+       NULLIF(dept_id, 1)                AS not_engineering
+FROM employees
+ORDER BY emp_id
+LIMIT 3;
+=> emp_name | manager_id | is_top | manager_or_zero | not_engineering
+=> Avery Quinn | NULL | true | 0 | NULL
+=> Blake Reed | 1 | false | 1 | NULL
+=> Casey Lin | 1 | false | 1 | 2
+! NOT IN (subquery) returns no rows at all if the subquery produces a single NULL. Prefer NOT EXISTS.
+
+@@ SQL · Aggregation
+
+@@@ COUNT, SUM, AVG, MIN, MAX
+Aggregates collapse many rows into one. All of them ignore NULLs except COUNT(*).
+@sql
+SELECT COUNT(*)          AS orders,
+       SUM(amount)       AS total,
+       ROUND(AVG(amount), 2) AS average,
+       MIN(amount)       AS smallest,
+       MAX(amount)       AS largest
+FROM orders;
+=> orders | total | average | smallest | largest
+=> 73 | 16438.00 | 225.18 | 21.00 | 820.00
+
+@@@ COUNT(*) vs COUNT(column) vs COUNT(DISTINCT)
+Three different questions: how many rows, how many non-NULL values, how many different values.
+@sql
+SELECT COUNT(*)                 AS all_rows,
+       COUNT(manager_id)        AS with_manager,
+       COUNT(DISTINCT dept_id)  AS departments_used
+FROM employees;
+=> all_rows | with_manager | departments_used
+=> 27 | 26 | 5
+
+@@@ GROUP BY
+One output row per group. Every selected column must be in the GROUP BY or inside an aggregate.
+@sql
+SELECT status, COUNT(*) AS orders, SUM(amount) AS revenue
+FROM orders
+GROUP BY status
+ORDER BY revenue DESC;
+=> status | orders | revenue
+=> delivered | 24 | 5854.00
+=> placed | 17 | 3783.00
+=> shipped | 17 | 3745.00
+=> cancelled | 15 | 3056.00
+
+@@@ HAVING vs WHERE
+WHERE filters rows before grouping; HAVING filters groups after the aggregate exists.
+@sql
+SELECT customer_id, COUNT(*) AS orders, SUM(amount) AS spent
+FROM orders
+WHERE status <> 'cancelled'
+GROUP BY customer_id
+HAVING SUM(amount) > 1000
+ORDER BY spent DESC
+LIMIT 3;
+=> customer_id | orders | spent
+=> 4 | 5 | 2807.00
+=> 2 | 6 | 1071.00
+=> 13 | 4 | 1048.00
+
+@@@ Conditional aggregation with FILTER
+Count or sum only the rows that meet a condition, several ways in one pass. (CASE inside the aggregate works in every database.)
+@sql
+SELECT COUNT(*) AS total,
+       COUNT(*) FILTER (WHERE status = 'delivered')                 AS delivered,
+       SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END)        AS cancelled,
+       ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'delivered') / COUNT(*), 1) AS pct_delivered
+FROM orders;
+=> total | delivered | cancelled | pct_delivered
+=> 73 | 24 | 15 | 32.9
+
+@@@ string_agg
+Roll the values of a group into one string (ARRAY_AGG does the same into an array).
+@sql
+SELECT dept_id,
+       STRING_AGG(emp_name, ', ' ORDER BY emp_name) AS people
+FROM employees
+WHERE dept_id IN (2, 4)
+GROUP BY dept_id
+ORDER BY dept_id;
+=> dept_id | people
+=> 2 | Ari Lowe, Casey Lin, Kai Moreno, Lane Wu, Morgan Bell, Noor Khan, Wren Cho
+=> 4 | Emery Cole, Reese Gil, Sage Holt
+
+@@@ ROLLUP subtotals
+ROLLUP adds subtotal and grand-total rows. The NULLs in the output mark the roll-up levels.
+@sql
+SELECT region, COUNT(*) AS sales, SUM(amount) AS amount
+FROM sales
+GROUP BY ROLLUP (region)
+ORDER BY region NULLS LAST;
+=> region | sales | amount
+=> East | 76 | 3918.00
+=> North | 76 | 3940.00
+=> South | 76 | 3970.00
+=> West | 76 | 3958.00
+=> NULL | 304 | 15786.00
+
+@@ SQL · Joins
+
+@@@ INNER JOIN
+Keeps only the rows that have a match on both sides.
+@sql
+SELECT e.emp_name, d.dept_name, d.location
+FROM employees e
+JOIN departments d ON d.dept_id = e.dept_id
+ORDER BY e.emp_id
+LIMIT 4;
+=> emp_name | dept_name | location
+=> Blake Reed | Engineering | New York
+=> Casey Lin | QA | Austin
+=> Devon Park | Sales | London
+=> Emery Cole | HR | Berlin
+! The CEO has dept_id NULL, so an INNER JOIN silently drops that row. Use LEFT JOIN to keep it.
+
+@@@ LEFT JOIN
+Keeps every row from the left table; unmatched right-side columns come back as NULL.
+@sql
+SELECT e.emp_name, d.dept_name
+FROM employees e
+LEFT JOIN departments d ON d.dept_id = e.dept_id
+ORDER BY e.emp_id
+LIMIT 3;
+=> emp_name | dept_name
+=> Avery Quinn | NULL
+=> Blake Reed | Engineering
+=> Casey Lin | QA
+
+@@@ Anti-join: rows with no match
+LEFT JOIN, then keep the rows where the right side is NULL. The classic "customers who never ordered" query.
+@sql
+SELECT c.customer_id, c.customer_name
+FROM customers c
+LEFT JOIN orders o ON o.customer_id = c.customer_id
+WHERE o.order_id IS NULL
+ORDER BY c.customer_id
+LIMIT 5;
+=> customer_id | customer_name
+=> 18 | Sue Park
+=> 19 | Tom Reid
+=> 20 | Una Cruz
+=> 21 | Cleo Marsh
+=> 22 | Cleo Marsh
+! Put extra filters on the right table in the ON clause, not in WHERE, or the LEFT JOIN turns back into an INNER JOIN.
+
+@@@ Self join
+Join a table to itself under two aliases, for example employee and manager.
+@sql
+SELECT e.emp_name AS employee, m.emp_name AS manager
+FROM employees e
+JOIN employees m ON m.emp_id = e.manager_id
+ORDER BY e.emp_id
+LIMIT 3;
+=> employee | manager
+=> Blake Reed | Avery Quinn
+=> Casey Lin | Avery Quinn
+=> Devon Park | Avery Quinn
+
+@@@ Joining three tables
+Chain joins; each ON clause connects the new table to one already in the query.
+@sql
+SELECT c.customer_name, o.order_id, p.product_name, oi.quantity
+FROM orders o
+JOIN customers   c  ON c.customer_id = o.customer_id
+JOIN order_items oi ON oi.order_id   = o.order_id
+JOIN products    p  ON p.product_id  = oi.product_id
+ORDER BY o.order_id, p.product_id
+LIMIT 3;
+=> customer_name | order_id | product_name | quantity
+=> Hana Sato | 1 | USB-C Hub | 3
+=> Hana Sato | 1 | Travel Mug | 2
+=> Omar Aziz | 2 | Wireless Mouse | 2
+
+@@@ FULL OUTER JOIN
+Keeps unmatched rows from both sides. Handy for comparing two lists.
+@sql
+SELECT COALESCE(a.n, b.n) AS n, a.n IS NOT NULL AS in_a, b.n IS NOT NULL AS in_b
+FROM (VALUES (1), (2), (3)) AS a(n)
+FULL JOIN (VALUES (2), (3), (4)) AS b(n) ON a.n = b.n
+ORDER BY n;
+=> n | in_a | in_b
+=> 1 | true | false
+=> 2 | true | true
+=> 3 | true | true
+=> 4 | false | true
+
+@@@ CROSS JOIN and generate_series
+CROSS JOIN pairs every row with every row. generate_series builds a list of numbers or dates on the fly.
+@sql
+SELECT d::date AS day, r.region
+FROM generate_series(DATE '2024-01-01', DATE '2024-01-02', INTERVAL '1 day') AS d
+CROSS JOIN (VALUES ('East'), ('West')) AS r(region)
+ORDER BY day, region;
+=> day | region
+=> 2024-01-01 | East
+=> 2024-01-01 | West
+=> 2024-01-02 | East
+=> 2024-01-02 | West
+
+@@ SQL · Subqueries, CTEs and set operations
+
+@@@ Scalar subquery
+A subquery that returns one value can be used anywhere a value is allowed.
+@sql
+SELECT emp_name, salary
+FROM employees
+WHERE salary > (SELECT AVG(salary) FROM employees)
+ORDER BY salary DESC
+LIMIT 3;
+=> emp_name | salary
+=> Avery Quinn | 250000.00
+=> Blake Reed | 180000.00
+=> Devon Park | 170000.00
+
+@@@ IN, EXISTS and NOT EXISTS
+EXISTS only asks "is there at least one row?", so it stops at the first match and handles NULLs safely.
+@sql
+SELECT customer_name
+FROM customers c
+WHERE EXISTS (SELECT 1 FROM orders o
+              WHERE o.customer_id = c.customer_id AND o.status = 'cancelled')
+ORDER BY customer_id
+LIMIT 3;
+=> customer_name
+=> Ada Mercer
+=> Ben Okafor
+=> Cleo Marsh
+
+@@@ Derived table (subquery in FROM)
+Treat a query as a temporary table so you can aggregate the aggregate.
+@sql
+SELECT ROUND(AVG(spent), 2) AS avg_spent_per_customer
+FROM (SELECT customer_id, SUM(amount) AS spent
+      FROM orders
+      GROUP BY customer_id) t;
+=> avg_spent_per_customer
+=> 821.90
+
+@@@ WITH (common table expression)
+A CTE gives a subquery a name so the main query reads top to bottom. Define several by separating them with commas.
+@sql
+WITH spend AS (
+  SELECT customer_id, SUM(amount) AS spent
+  FROM orders
+  GROUP BY customer_id
+), ranked AS (
+  SELECT customer_id, spent, RANK() OVER (ORDER BY spent DESC) AS rnk
+  FROM spend
+)
+SELECT c.customer_name, r.spent, r.rnk
+FROM ranked r
+JOIN customers c USING (customer_id)
+WHERE r.rnk <= 3
+ORDER BY r.rnk, c.customer_name;
+=> customer_name | spent | rnk
+=> Dev Patel | 2902.00 | 1
+=> Max Weber | 1219.00 | 2
+=> Ben Okafor | 1094.00 | 3
+
+@@@ Recursive CTE (hierarchies)
+Start with the anchor rows, then keep joining the previous level until nothing new appears. Ideal for org charts and category trees.
+@sql
+WITH RECURSIVE chain AS (
+  SELECT emp_id, emp_name, manager_id, 1 AS depth
+  FROM employees WHERE manager_id IS NULL
+  UNION ALL
+  SELECT e.emp_id, e.emp_name, e.manager_id, c.depth + 1
+  FROM employees e
+  JOIN chain c ON e.manager_id = c.emp_id
+)
+SELECT depth, COUNT(*) AS people
+FROM chain
+GROUP BY depth
+ORDER BY depth;
+=> depth | people
+=> 1 | 1
+=> 2 | 5
+=> 3 | 9
+=> 4 | 8
+=> 5 | 3
+
+@@@ UNION, INTERSECT and EXCEPT
+Combine two result sets with the same columns. UNION removes duplicates, UNION ALL keeps them (and is faster).
+@sql
+SELECT 'union'     AS op, COUNT(*) AS n FROM (SELECT customer_id FROM orders UNION     SELECT user_id FROM logins) a
+UNION ALL
+SELECT 'intersect', COUNT(*)          FROM (SELECT customer_id FROM orders INTERSECT SELECT user_id FROM logins) b
+UNION ALL
+SELECT 'except',    COUNT(*)          FROM (SELECT customer_id FROM orders EXCEPT    SELECT user_id FROM logins) c;
+=> op | n
+=> union | 20
+=> intersect | 10
+=> except | 10
+
+@@@ LATERAL join
+A subquery that may refer to the row on its left. The cleanest way to get the top N rows per group.
+@sql
+SELECT c.customer_name, t.order_id, t.amount
+FROM customers c
+CROSS JOIN LATERAL (
+  SELECT order_id, amount FROM orders o
+  WHERE o.customer_id = c.customer_id
+  ORDER BY amount DESC LIMIT 1
+) t
+ORDER BY c.customer_id
+LIMIT 3;
+=> customer_name | order_id | amount
+=> Ada Mercer | 51 | 467.00
+=> Ben Okafor | 22 | 354.00
+=> Cleo Marsh | 10 | 390.00
+
+@@ SQL · Window functions
+
+@@@ ROW_NUMBER, RANK and DENSE_RANK
+Number the rows inside each group without collapsing them. Ties: ROW_NUMBER never ties, RANK leaves gaps after a tie, DENSE_RANK does not.
+@sql
+SELECT n,
+       ROW_NUMBER() OVER (ORDER BY n DESC) AS row_number,
+       RANK()       OVER (ORDER BY n DESC) AS rank,
+       DENSE_RANK() OVER (ORDER BY n DESC) AS dense_rank
+FROM (VALUES (90), (90), (80), (70)) AS t(n);
+=> n | row_number | rank | dense_rank
+=> 90 | 1 | 1 | 1
+=> 90 | 2 | 1 | 1
+=> 80 | 3 | 3 | 2
+=> 70 | 4 | 4 | 3
+
+@@@ Top N per group
+Rank inside each group (PARTITION BY), then keep the rows where the rank is small enough. The filter has to live in an outer query.
+@sql
+SELECT dept_id, emp_name, salary
+FROM (SELECT dept_id, emp_name, salary,
+             ROW_NUMBER() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS rn
+      FROM employees
+      WHERE dept_id IS NOT NULL AND salary IS NOT NULL) t
+WHERE rn = 1
+ORDER BY dept_id;
+=> dept_id | emp_name | salary
+=> 1 | Blake Reed | 180000.00
+=> 2 | Casey Lin | 165000.00
+=> 3 | Devon Park | 170000.00
+=> 4 | Emery Cole | 140000.00
+=> 5 | Finley Ross | 155000.00
+
+@@@ LAG and LEAD
+Look at the previous or next row without a self join. Perfect for "change since last period".
+@sql
+SELECT order_id, amount,
+       LAG(amount)  OVER (ORDER BY order_id)          AS previous,
+       amount - LAG(amount) OVER (ORDER BY order_id)  AS change
+FROM orders
+ORDER BY order_id
+LIMIT 3;
+=> order_id | amount | previous | change
+=> 1 | 57.00 | NULL | NULL
+=> 2 | 94.00 | 57.00 | 37.00
+=> 3 | 131.00 | 94.00 | 37.00
+
+@@@ Running total
+SUM() OVER (ORDER BY ...) accumulates as it goes down the rows.
+@sql
+SELECT order_id, amount,
+       SUM(amount) OVER (ORDER BY order_id) AS running_total
+FROM orders
+ORDER BY order_id
+LIMIT 4;
+=> order_id | amount | running_total
+=> 1 | 57.00 | 57.00
+=> 2 | 94.00 | 151.00
+=> 3 | 131.00 | 282.00
+=> 4 | 168.00 | 450.00
+
+@@@ Moving average with a frame
+The frame says which neighbouring rows to include: here the current row and the two before it.
+@sql
+SELECT order_id, amount,
+       ROUND(AVG(amount) OVER (ORDER BY order_id
+             ROWS BETWEEN 2 PRECEDING AND CURRENT ROW), 2) AS moving_avg_3
+FROM orders
+ORDER BY order_id
+LIMIT 4;
+=> order_id | amount | moving_avg_3
+=> 1 | 57.00 | 57.00
+=> 2 | 94.00 | 75.50
+=> 3 | 131.00 | 94.00
+=> 4 | 168.00 | 131.00
+
+@@@ NTILE and share of total
+NTILE(n) splits rows into n equal buckets. Dividing by a window SUM gives each row's share of the whole.
+@sql
+SELECT region, SUM(amount) AS amount,
+       NTILE(2) OVER (ORDER BY SUM(amount) DESC) AS half,
+       ROUND(100.0 * SUM(amount) / SUM(SUM(amount)) OVER (), 1) AS pct_of_total
+FROM sales
+GROUP BY region
+ORDER BY amount DESC;
+=> region | amount | half | pct_of_total
+=> South | 3970.00 | 1 | 25.1
+=> West | 3958.00 | 1 | 25.1
+=> North | 3940.00 | 2 | 25.0
+=> East | 3918.00 | 2 | 24.8
+
+@@@ FIRST_VALUE and the "latest row" pattern
+Compare each row with the first (or last) row of its group.
+@sql
+SELECT dept_id, emp_name, salary,
+       FIRST_VALUE(emp_name) OVER (PARTITION BY dept_id ORDER BY salary DESC) AS top_earner
+FROM employees
+WHERE dept_id = 2
+ORDER BY salary DESC
+LIMIT 3;
+=> dept_id | emp_name | salary | top_earner
+=> 2 | Casey Lin | 165000.00 | Casey Lin
+=> 2 | Ari Lowe | 125000.00 | Casey Lin
+=> 2 | Kai Moreno | 110000.00 | Casey Lin
+
+@@ SQL · Dates and strings
+
+@@@ Date arithmetic
+Subtracting two dates gives a number of days. Adding an INTERVAL moves a date. CURRENT_DATE is today (not used here so the output stays fixed).
+@sql
+SELECT DATE '2024-03-15' - DATE '2024-01-01'          AS days_between,
+       DATE '2024-01-31' + INTERVAL '1 month'         AS plus_month,
+       DATE '2024-03-15' + 30                         AS plus_30_days,
+       AGE(DATE '2024-03-15', DATE '2020-01-01')      AS age;
+=> days_between | plus_month | plus_30_days | age
+=> 74 | 2024-02-29 | 2024-04-14 | 4 years 2 mons 14 days
+
+@@@ DATE_TRUNC and EXTRACT
+DATE_TRUNC rounds a timestamp down (to a month, a week...). EXTRACT pulls out one part.
+@sql
+SELECT DATE_TRUNC('month', order_date)::date AS month,
+       COUNT(*)                              AS orders,
+       EXTRACT(YEAR FROM MIN(order_date))    AS first_year
+FROM orders
+GROUP BY 1
+ORDER BY 1
+LIMIT 3;
+=> month | orders | first_year
+=> 2023-01-01 | 4 | 2023
+=> 2023-02-01 | 4 | 2023
+=> 2023-03-01 | 1 | 2023
+
+@@@ Date ranges that never miss a row
+Use a half-open range: >= start AND < next start. BETWEEN on timestamps loses everything after midnight of the last day.
+@sql
+SELECT COUNT(*) AS march_views
+FROM page_views
+WHERE view_ts >= DATE '2024-03-01'
+  AND view_ts <  DATE '2024-04-01';
+=> march_views
+=> 400
+! Wrapping the column in a function (WHERE DATE(view_ts) = ...) stops the database using an index on it. Compare the bare column to a range instead.
+
+@@@ TO_CHAR and formatting
+Format dates and numbers as text for reports.
+@sql
+SELECT TO_CHAR(DATE '2024-03-05', 'YYYY-MM-DD')    AS iso,
+       TO_CHAR(DATE '2024-03-05', 'Dy DD Mon YYYY') AS friendly,
+       TO_CHAR(1234567.891, 'FM9,999,999.00')       AS money;
+=> iso | friendly | money
+=> 2024-03-05 | Tue 05 Mar 2024 | 1,234,567.89
+
+@@@ String functions
+Case, length, slicing, searching and gluing strings together.
+@sql
+SELECT UPPER(emp_name)                         AS shouting,
+       LENGTH(emp_name)                        AS len,
+       SUBSTRING(email FROM 1 FOR 5)           AS first5,
+       POSITION('@' IN email)                  AS at_sign,
+       REPLACE(email, '@corp.test', '')        AS handle,
+       emp_name || ' <' || email || '>'        AS display
+FROM employees
+WHERE emp_id = 2;
+=> shouting | len | first5 | at_sign | handle | display
+=> BLAKE REED | 10 | blake | 11 | blake.reed | Blake Reed <blake.reed@corp.test>
+! The concatenation operator || returns NULL if any piece is NULL. Use CONCAT(a, b) or COALESCE to be safe.
+
+@@@ Pattern matching: LIKE, ILIKE and regex
+LIKE is case sensitive, ILIKE ignores case, ~ matches a regular expression.
+@sql
+SELECT product_name,
+       product_name LIKE 'Wireless%'  AS starts_wireless,
+       product_name ILIKE '%usb%'     AS has_usb,
+       product_name ~ '^[A-Z][a-z]+ [A-Z]' AS two_capitalised_words
+FROM products
+ORDER BY product_id
+LIMIT 3;
+=> product_name | starts_wireless | has_usb | two_capitalised_words
+=> Wireless Mouse | true | false | true
+=> Mechanical Keyboard | false | false | true
+=> USB-C Hub | false | true | false
+
+@@@ split_part, TRIM and padding
+Everyday cleaning functions for messy text.
+@sql
+SELECT SPLIT_PART('qa.lead@corp.test', '@', 2)       AS domain,
+       TRIM('   padded   ')                          AS trimmed,
+       LPAD('42', 5, '0')                            AS zero_padded,
+       REGEXP_REPLACE('a1b22c333', '[0-9]+', '#', 'g') AS digits_masked,
+       INITCAP('hello sql world')                    AS title_case;
+=> domain | trimmed | zero_padded | digits_masked | title_case
+=> corp.test | padded | 00042 | a#b#c# | Hello Sql World
+
+@@ SQL · Data quality checks
+
+@@@ Find duplicates
+Group by the columns that should be unique and keep the groups bigger than one.
+@sql
+SELECT customer_name, COUNT(*) AS copies
+FROM customers
+GROUP BY customer_name
+HAVING COUNT(*) > 1
+ORDER BY copies DESC, customer_name;
+=> customer_name | copies
+=> Cleo Marsh | 3
+! "Duplicate" depends on the key you choose. Say it out loud first: the same email? The same email and city? The whole row?
+
+@@@ Delete duplicates but keep one
+Number the copies with ROW_NUMBER and delete everything after the first. RETURNING shows what was removed. (The database here is reset after every run.)
+@sql
+DELETE FROM customers
+WHERE ctid IN (
+  SELECT ctid FROM (
+    SELECT ctid, ROW_NUMBER() OVER (PARTITION BY customer_name ORDER BY customer_id) AS rn
+    FROM customers
+  ) t
+  WHERE rn > 1
+)
+RETURNING customer_id, customer_name;
+=> customer_id | customer_name
+=> 21 | Cleo Marsh
+=> 22 | Cleo Marsh
+! ctid is PostgreSQL's physical row id. In other databases partition on a primary key column or use the ROWID / %%physloc%% equivalent.
+
+@@@ Orphan rows (broken foreign keys)
+A child row whose parent is missing: LEFT JOIN to the parent and look for NULL.
+@sql
+SELECT e.emp_id, e.emp_name, e.dept_id
+FROM employees e
+LEFT JOIN departments d ON d.dept_id = e.dept_id
+WHERE e.dept_id IS NOT NULL AND d.dept_id IS NULL;
+=> emp_id | emp_name | dept_id
+! An empty result is the goal here: no employee points at a department that does not exist.
+
+@@@ Reconcile two tables with EXCEPT
+Rows in the source that are missing from the target. Swap the sides to find the opposite problem.
+@sql
+SELECT customer_id, email FROM customers_stg
+EXCEPT
+SELECT customer_id, email FROM customers
+ORDER BY customer_id
+LIMIT 5;
+=> customer_id | email
+=> 21 | vic@mail.test
+=> 22 | wes@mail.test
+
+@@@ Row counts and NULL rates
+The quick health check after a load: how many rows, and how much of each column is missing.
+@sql
+SELECT COUNT(*)                                                    AS total_rows,
+       COUNT(*) FILTER (WHERE salary IS NULL)                      AS missing_salary,
+       ROUND(100.0 * COUNT(*) FILTER (WHERE dept_id IS NULL) / COUNT(*), 1) AS pct_no_department
+FROM employees;
+=> total_rows | missing_salary | pct_no_department
+=> 27 | 2 | 3.7
+
+@@@ Find gaps in a sequence
+Generate the numbers that should exist and look for the ones that do not.
+@sql
+SELECT g AS missing_id
+FROM generate_series(1, 12) AS g
+LEFT JOIN orders o ON o.order_id = g
+WHERE o.order_id IS NULL
+ORDER BY g;
+=> missing_id
+=> 7
+=> 8
+
+@@@ Latest row per key with DISTINCT ON
+PostgreSQL shortcut: keep the first row of each group according to ORDER BY.
+@sql
+SELECT DISTINCT ON (customer_id) customer_id, order_id, order_date
+FROM orders
+ORDER BY customer_id, order_date DESC
+LIMIT 3;
+=> customer_id | order_id | order_date
+=> 1 | 51 | 2024-07-15
+=> 2 | 56 | 2024-09-08
+=> 3 | 44 | 2024-04-29
+! DISTINCT ON is PostgreSQL only. The portable version is ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ... DESC) = 1.
+
+@@ SQL · Changing data
+
+@@@ INSERT ... RETURNING
+Insert one or many rows. RETURNING sends back the new rows, including generated values. Every change on this page is rolled back after it runs.
+@sql
+INSERT INTO departments (dept_id, dept_name, location)
+VALUES (7, 'Security', 'Dublin'), (8, 'Support', 'Pune')
+RETURNING dept_id, dept_name;
+=> dept_id | dept_name
+=> 7 | Security
+=> 8 | Support
+
+@@@ UPDATE with a join
+Change rows using values from another table (PostgreSQL spells the join FROM).
+@sql
+UPDATE employees e
+SET salary = e.salary * 1.05
+FROM departments d
+WHERE d.dept_id = e.dept_id AND d.dept_name = 'QA'
+RETURNING e.emp_name, e.salary;
+=> emp_name | salary
+=> Casey Lin | 173250.00
+=> Kai Moreno | 115500.00
+=> Lane Wu | 115500.00
+=> Morgan Bell | 99750.00
+=> Noor Khan | 102900.00
+=> Wren Cho | 75600.00
+=> Ari Lowe | 131250.00
+
+@@@ DELETE ... RETURNING
+Always run the matching SELECT first. RETURNING lets you see exactly what a DELETE removed.
+@sql
+DELETE FROM orders
+WHERE status = 'cancelled' AND amount < 100
+RETURNING order_id, amount;
+=> order_id | amount
+=> 15 | 95.00
+=> 27 | 59.00
+=> 39 | 23.00
+=> 75 | 44.00
+=> 76 | 61.00
+
+@@@ UPSERT with ON CONFLICT
+Insert, or update when the key already exists. EXCLUDED is the row you tried to insert.
+@sql
+INSERT INTO departments (dept_id, dept_name, location)
+VALUES (1, 'Engineering', 'Remote')
+ON CONFLICT (dept_id) DO UPDATE SET location = EXCLUDED.location
+RETURNING dept_id, location;
+=> dept_id | location
+=> 1 | Remote
+! MySQL spells this ON DUPLICATE KEY UPDATE, SQL Server and Oracle use MERGE.
+
+@@@ CREATE TABLE with constraints
+Constraints make bad data impossible: PRIMARY KEY, NOT NULL, UNIQUE, CHECK and FOREIGN KEY. The last statement's result is what you see.
+@sql
+CREATE TABLE test_runs (
+  run_id    SERIAL PRIMARY KEY,
+  suite     TEXT    NOT NULL,
+  passed    INT     NOT NULL CHECK (passed >= 0),
+  failed    INT     NOT NULL DEFAULT 0,
+  UNIQUE (suite)
+);
+INSERT INTO test_runs (suite, passed) VALUES ('smoke', 40), ('regression', 310);
+SELECT run_id, suite, passed, failed FROM test_runs ORDER BY run_id;
+=> run_id | suite | passed | failed
+=> 1 | smoke | 40 | 0
+=> 2 | regression | 310 | 0
+
+@@@ Constraint violations
+A failed statement changes nothing. Reading the error tells you which rule rejected the data.
+@sql!
+INSERT INTO departments (dept_id, dept_name, location) VALUES (1, 'Duplicate', 'Nowhere');
+-- ERROR: duplicate key value violates unique constraint "departments_pkey"
+-- DETAIL: Key (dept_id)=(1) already exists.
+
+@@@ Transactions
+Group statements so they succeed or fail together. Here the editor already wraps every run in a transaction that is rolled back, so this one is view only.
+@sql!
+BEGIN;
+UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+COMMIT;      -- or ROLLBACK; to undo both changes
+! Two statements, two accounts: without a transaction a crash between them loses money. Test that your code rolls back on failure.
+
+@@ SQL · Performance and dialects
+
+@@@ Indexes
+An index lets the database find rows without scanning the whole table. Index the columns you filter, join and sort on.
+@sql
+CREATE INDEX idx_orders_customer_date ON orders (customer_id, order_date);
+SELECT indexname
+FROM pg_indexes
+WHERE tablename = 'orders'
+ORDER BY indexname;
+=> indexname
+=> idx_orders_customer_date
+=> orders_pkey
+! The order of columns in a composite index matters: it helps filters on customer_id, or customer_id + order_date, but not on order_date alone.
+
+@@@ EXPLAIN
+EXPLAIN shows the plan the database chose; EXPLAIN ANALYZE also runs the query and shows real timings. Look for Seq Scan on big tables and big gaps between estimated and actual rows. Plans depend on table size, so this is view only.
+@sql!
+EXPLAIN ANALYZE
+SELECT * FROM orders WHERE customer_id = 8;
+-- Seq Scan on orders  (cost=0.00..1.75 rows=2 width=...) (actual time=0.01..0.02 rows=2 loops=1)
+--   Filter: (customer_id = 8)
+
+@@@ JSON in PostgreSQL
+Build JSON with jsonb_build_object and read it back with -> (keeps JSON) and ->> (returns text).
+@sql
+SELECT doc -> 'user' ->> 'name'            AS name,
+       (doc -> 'user' ->> 'age')::int + 1  AS next_age,
+       doc -> 'tags'                       AS tags,
+       jsonb_array_length(doc -> 'tags')   AS tag_count
+FROM (SELECT '{"user": {"name": "Ada", "age": 36}, "tags": ["qa", "sql"]}'::jsonb AS doc) t;
+=> name | next_age | tags | tag_count
+=> Ada | 37 | {qa,sql} | 2
+
+@@@ SQL dialects at a glance
+The same idea is spelled differently in each database. This list is view only because only PostgreSQL runs here.
+@sql!
+-- First 5 rows
+--   PostgreSQL / MySQL / SQLite : ... LIMIT 5
+--   SQL Server                  : SELECT TOP 5 ...
+--   Oracle 12c+ / standard      : ... FETCH FIRST 5 ROWS ONLY
+
+-- Concatenate text
+--   PostgreSQL / Oracle / SQLite: a || b
+--   MySQL / SQL Server          : CONCAT(a, b)
+
+-- Days between two dates
+--   PostgreSQL                  : d2 - d1
+--   MySQL / SQL Server          : DATEDIFF(d2, d1)  /  DATEDIFF(day, d1, d2)
+
+-- Current timestamp
+--   PostgreSQL / MySQL          : NOW()
+--   SQL Server                  : GETDATE()
+--   Oracle                      : SYSDATE
+
+-- Auto-increment key
+--   PostgreSQL                  : id SERIAL  /  GENERATED ALWAYS AS IDENTITY
+--   MySQL                       : id INT AUTO_INCREMENT
+--   SQL Server                  : id INT IDENTITY(1,1)

@@ -1,4 +1,4 @@
-/* Tiny dependency-free syntax highlighter for Python / JavaScript / TypeScript. */
+/* Tiny dependency-free syntax highlighter for Python / JavaScript / TypeScript / SQL. */
 (function () {
   const PY_KW = "False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield self";
   const JS_KW = "async await break case catch class const continue debugger default delete do else export extends finally for function if import in instanceof let new of return static super switch this throw try typeof var void while with yield null undefined true false";
@@ -10,9 +10,30 @@
     js: /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|(`(?:\\.|[^`\\])*`)|("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*')|()(\b\d[\d_]*\.?\d*(?:e[+-]?\d+)?n?\b)|([A-Za-z_$][\w$]*)/g,
   };
 
+  const SQL_KW = "SELECT FROM WHERE GROUP BY ORDER HAVING LIMIT OFFSET FETCH FIRST ROWS ONLY AS DISTINCT ON JOIN INNER LEFT RIGHT FULL OUTER CROSS NATURAL USING UNION INTERSECT EXCEPT ALL ANY SOME EXISTS IN NOT AND OR IS NULL BETWEEN LIKE ILIKE CASE WHEN THEN ELSE END WITH RECURSIVE OVER PARTITION RANGE UNBOUNDED PRECEDING FOLLOWING CURRENT ROW LATERAL INSERT INTO VALUES UPDATE SET DELETE RETURNING CREATE TABLE VIEW INDEX DROP ALTER ADD COLUMN CONSTRAINT PRIMARY KEY FOREIGN REFERENCES UNIQUE CHECK DEFAULT BEGIN COMMIT ROLLBACK EXPLAIN ANALYZE ASC DESC NULLS TRUE FALSE FILTER WITHIN INTERVAL CAST CONFLICT DO NOTHING TRUNCATE MATERIALIZED TEMP TEMPORARY IF";
+  const SQL_RE = /(--[^\n]*|\/\*[\s\S]*?\*\/)|('(?:''|[^'])*')|(\b\d[\d_]*\.?\d*\b)|([A-Za-z_][\w$]*)/g;
+  const SQL_SET = new Set(SQL_KW.split(" "));
+
+  function highlightSql(code) {
+    let out = "", last = 0, m;
+    SQL_RE.lastIndex = 0;
+    while ((m = SQL_RE.exec(code))) {
+      out += esc(code.slice(last, m.index));
+      last = m.index + m[0].length;
+      let cls = null;
+      if (m[1]) cls = "c";
+      else if (m[2]) cls = "s";
+      else if (m[3]) cls = "n";
+      else if (m[4]) cls = SQL_SET.has(m[4].toUpperCase()) ? "k" : (code[last] === "(" ? "f" : null);
+      out += cls ? `<span class="tok-${cls}">${esc(m[0])}</span>` : esc(m[0]);
+    }
+    return out + esc(code.slice(last));
+  }
+
   const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
   function highlight(code, lang) {
+    if (lang === "sql") return highlightSql(code);
     const re = new RegExp((lang === "py" ? COMMON.py : COMMON.js).source, "g");
     const kw = KEYWORDS[lang] || KEYWORDS.js;
     let out = "";

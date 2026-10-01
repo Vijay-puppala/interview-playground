@@ -18,6 +18,7 @@ const MIME = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/jav
 const resolveFile = (url) => {
   const u = url.split("?")[0];
   if (u === "/__ts.js") return path.join(root, "node_modules/typescript/lib/typescript.js");
+  if (u.startsWith("/__pglite/")) return path.join(root, "node_modules/@electric-sql/pglite/dist", u.slice("/__pglite/".length));
   if (u.startsWith("/__pyodide/")) return path.join(root, "node_modules/pyodide", u.slice("/__pyodide/".length));
   return path.join(web, u === "/" ? "index.html" : u);
 };
@@ -36,7 +37,7 @@ const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 page.on("console", (m) => { if (m.type() === "error") errors.push("console: " + m.text()); });
 
-await page.addInitScript((b) => { window.RUNNER_URLS = { pyodide: b + "__pyodide/", typescript: b + "__ts.js" }; }, base);
+await page.addInitScript((b) => { window.RUNNER_URLS = { pyodide: b + "__pyodide/", typescript: b + "__ts.js", pglite: b + "__pglite/index.js" }; }, base);
 
 let passed = 0, failed = 0;
 const check = async (name, fn) => {
@@ -205,7 +206,7 @@ await check("cheat sheet: lists every entry and follows the language switch", as
   await page.goto(base + "#cheatsheet");
   await setLang("py");
   await page.waitForSelector(".cs-entry");
-  eq(await page.locator(".cs-entry").count(), 111, "entries");
+  eq(await page.locator(".cs-entry").count(), 170, "entries");
   if (!(await page.textContent('.cs-entry[data-key="variables-and-types"] pre.code')).includes("type(name).__name__")) throw new Error("python code missing");
   await setLang("js");
   if (!(await page.textContent('.cs-entry[data-key="variables-and-types"] pre.code')).includes("typeof")) throw new Error("javascript code missing");
@@ -222,7 +223,7 @@ await check("cheat sheet: search and section filter", async () => {
   await page.waitForFunction(() => document.querySelectorAll(".cs-entry").length === 8);
   eq(await page.locator(".cs-section").count(), 1, "one section heading");
   await page.click('#csChips [data-sec="all"]');
-  await page.waitForFunction(() => document.querySelectorAll(".cs-entry").length === 111);
+  await page.waitForFunction(() => document.querySelectorAll(".cs-entry").length === 170);
 });
 
 await check("cheat sheet: run a Python example", async () => {
@@ -417,6 +418,99 @@ await check("no horizontal overflow on any view from 320px to 412px", async () =
   }
   if (bad.length) throw new Error(bad.join(", "));
   await page.setViewportSize({ width: 1280, height: 900 });
+});
+
+await check("cheat sheet: SQL entry runs on Postgres, matches its documented output, shows for every language", async () => {
+  await setLang("js");
+  await page.goto(base + "#cheatsheet/group-by");
+  const card = '.cs-entry[data-key="group-by"]';
+  await page.waitForSelector(card);
+  eq(await page.getAttribute(card, "data-lang"), "sql", "language of the block");
+  await page.click(card + ' [data-act="run"]');
+  await page.waitForSelector(card + " .summary.ok", { timeout: 120000 });
+  await page.waitForSelector(card + " .sql-table");
+  await page.click(card + ' [data-act="play"]');
+  await page.waitForSelector("#tryHost textarea");
+  if (!/GROUP BY status/.test(await page.inputValue("#tryHost textarea"))) throw new Error("example not loaded into the SQL try-it box");
+  await page.goto(base + "#cheatsheet");
+  await setLang("py");
+});
+
+await check("SQL: lists 50 patterns and opens one with 10 questions", async () => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(base + "#sql");
+  await page.waitForSelector("#sqlList button");
+  eq(await page.locator("#sqlList button[data-go]").count(), 51, "patterns + tables entry");
+  eq(await page.isVisible("#langSeg"), false, "language switch hidden on the SQL tab");
+  await page.click('#sqlList button[data-go="find-duplicate-rows"]');
+  await page.waitForSelector("#q-p01-q10");
+  eq(await page.locator("article.sq").count(), 10, "questions");
+  eq(await page.locator("#q-p01-q1 .sq-answer pre").count(), 0, "solution hidden at first");
+});
+
+await check("SQL: a query runs on Postgres and shows a table; errors are reported", async () => {
+  const q = "#q-p01-q1";
+  await page.fill(q + " textarea", "SELECT 1 AS one, NULL AS nothing, 'x' AS txt");
+  await page.click(q + " .run");
+  await page.waitForSelector(q + " .sql-table", { timeout: 120000 });
+  eq(await page.locator(q + " .sql-table th").allTextContents().then((a) => a.join(",")), "one,nothing,txt", "columns");
+  eq(await page.locator(q + " .sql-table td.null").count(), 1, "NULL cell");
+  await page.fill(q + " textarea", "SELEC 1");
+  await page.click(q + " .run");
+  await page.waitForSelector(q + " .sql-err");
+  if (!/syntax error/i.test(await page.textContent(q + " .sql-err"))) throw new Error("no syntax error message");
+});
+
+await check("SQL: changes are rolled back (the data is the same on the next run)", async () => {
+  const q = "#q-p01-q1";
+  await page.fill(q + " textarea", "UPDATE employees SET salary = 1");
+  await page.click(q + " .run");
+  await page.waitForSelector(q + " .sql-ok");
+  await page.fill(q + " textarea", "SELECT MIN(salary) AS lowest FROM employees");
+  await page.click(q + " .run");
+  await page.waitForSelector(q + " .sql-table");
+  if ((await page.locator(q + " .sql-table td").first().textContent()).trim() === "1") throw new Error("UPDATE persisted");
+});
+
+await check("SQL: hint, approach and solution are revealed one step at a time; the solution runs", async () => {
+  const q = "#q-p01-q1";
+  await page.click(q + " .rv");
+  await page.waitForSelector(q + " .sq-stage h4");
+  eq(await page.locator(q + " .sq-answer pre").count(), 0, "no solution after the hint");
+  await page.click(q + " .rv");
+  eq(await page.locator(q + " .sq-answer pre").count(), 0, "no solution after the approach");
+  await page.click(q + " .rv");
+  await page.waitForSelector(q + " .sq-answer pre");
+  await page.click(q + " .run-sol");
+  await page.waitForSelector(q + " .sol-result .sql-table");
+  await page.click(q + " .use");
+  if (!/GROUP BY/.test(await page.inputValue(q + " textarea"))) throw new Error("Use as my query did not copy it");
+});
+
+await check("SQL: marking a question done updates the sidebar", async () => {
+  await page.check("#q-p01-q1 .qdone");
+  eq((await page.textContent('#sqlList button[data-go="find-duplicate-rows"] .count')).trim(), "1/10", "count");
+  eq(await page.evaluate(() => JSON.parse(localStorage.getItem("qa.sql.done")).includes("p01-q1")), true, "persisted");
+});
+
+await check("SQL: bind-parameter questions show inputs and run with them", async () => {
+  await page.goto(base + "#sql/" + (await page.evaluate(() => window.SQL_INDEX.patterns[4].slug)));
+  await page.waitForSelector("article.sq input[data-p]");
+  const q = "#q-p05-q8";
+  await page.click(q + " .rv"); await page.click(q + " .rv"); await page.click(q + " .rv");
+  await page.click(q + " .run-sol");
+  await page.waitForSelector(q + " .sol-result .sql-table", { timeout: 60000 });
+});
+
+await check("SQL: tables page and quick search", async () => {
+  await page.goto(base + "#sql/schema");
+  await page.waitForSelector("#t-employees");
+  await page.click('#t-employees .peek');
+  await page.waitForSelector("#tryHost .sql-table");
+  await page.keyboard.press("Control+k");
+  await page.fill("#qsInput", "duplicate rows");
+  if (!/Find Duplicate Rows/.test(await page.textContent("#qsList"))) throw new Error("SQL pattern not in quick search");
+  await page.keyboard.press("Escape");
 });
 
 await check("mobile layout: menu opens the problem list", async () => {

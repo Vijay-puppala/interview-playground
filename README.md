@@ -13,8 +13,9 @@ solution and an explanation you reveal only when you ask for it.
 | Language switch | Python · JavaScript · TypeScript (header, top right) |
 | Solve in the browser | Write code, press **Run**, get checked against the examples (Python via [Pyodide](https://pyodide.org), JS natively, TS transpiled in the browser) |
 | Solution on demand | **Reveal solution & explanation** keeps the answer hidden until clicked; includes *Run this solution* |
-| Cheat sheet | 111 concepts and methods with examples side by side in Python, JavaScript and TypeScript: strings, lists, dicts, functions, classes, errors, regex, dates, async, typing, testing and SDET automation. Search, copy, **Run** each example, or open it in the Playground |
+| Cheat sheet | 170 concepts and methods with examples side by side in Python, JavaScript and TypeScript (plus 59 SQL entries that run on PostgreSQL): strings, lists, dicts, functions, classes, errors, regex, dates, async, typing, testing and SDET automation. Search, copy, **Run** each example, or open it in the Playground |
 | Playground | Run any program in any of the three languages; opens with a `Hello, Vijay!` starter; Python `input()` supported; **Stop** button for runaway loops |
+| SQL | 50 patterns x 10 questions (500) with theory, pitfalls, think / hint / approach / solution / explanation revealed step by step. **Run** executes queries on a real PostgreSQL ([PGlite](https://pglite.dev), WebAssembly) in your browser against a shared sample database; every run is rolled back, so data never drifts |
 | Progress | Solved problems are remembered in your browser (`localStorage`) |
 | Static site | No backend: deploys to Vercel as plain files |
 
@@ -86,10 +87,11 @@ content/ts/        TypeScript solutions. JavaScript is generated from these by s
 content/demos.py   Short runnable demos for classes / decorators (MinStack, retry, ...)
 content/cheatsheet/ The cheat sheet, as plain text (see "Adding a cheat-sheet entry")
 tests/             Runs every @case example, plus tests for classes, decorators and PySpark
-tools/             build_site.py (generates web/data), export_cases.py, check_ts.mjs, cheatsheet.py, check_cheatsheet.mjs, e2e.mjs
+content/sql/         SQL patterns (patterns/pNN.txt), schema.sql, seed.sql, schema.json (see tools/sqlcontent.py for the text format)
+tools/             build_site.py (generates web/data), export_cases.py, check_ts.mjs, cheatsheet.py, check_cheatsheet.mjs, check_sql.mjs, sqlcontent.py, e2e.mjs
 web/               The static site that Vercel serves (index.html, app.js, runner.js, styles.css, ...)
 web/fonts/         Lato (SIL Open Font License, see LICENSE-Lato-OFL.txt), self-hosted so no font CDN is needed
-web/data/          GENERATED: problems.js, bundles.js and cheatsheet.js. Commit these; Vercel does not run Python
+web/data/          GENERATED: problems.js, bundles.js, cheatsheet.js, sql_index.js, sql_setup.js and sql/pNN.js. Commit these; Vercel does not run Python
 ```
 
 One source of truth: the Python `@case` examples are exported to JSON, and the same examples check the Python, TypeScript and JavaScript solutions.
@@ -139,6 +141,13 @@ The site is plain static files, so there is nothing to build.
 
 If you keep this project inside a larger repository, set **Root Directory** to the folder that contains `vercel.json`.
 
+### SQL content
+
+Patterns live in `content/sql/patterns/pNN.txt` (format documented in `tools/sqlcontent.py`); the sample database is `content/sql/schema.sql` + `seed.sql`.
+`npm run test:sql` runs all 500 solutions and every SQL cheat-sheet example on PostgreSQL through the same `web/sql_engine.js` the site uses
+(one solution that needs vendor-only syntax is shown but not run). SQL cheat-sheet entries are `@sql` blocks in `content/cheatsheet/07_sql.txt`;
+after editing a query run `node tools/check_sql.mjs --fill-cheatsheet` to regenerate its `=>` output, review the diff, then `python tools/build_site.py`.
+
 ## Limits worth knowing
 
 - **Pyodide runs Python in the browser**, so only the standard library plus Pyodide's bundled packages (pandas, numpy, ...) are available. `requests`,
@@ -146,4 +155,5 @@ If you keep this project inside a larger repository, set **Root Directory** to t
 - In the browser runner `asyncio.run(main())` is adapted so ordinary async scripts work (the browser cannot block); top-level `await` also works.
 - Code runs in a Web Worker with a time limit (10 s for problems, 20 s in the Playground), and can be stopped.
 - The explanations are written against the Python reference; the JS / TS versions follow the same approach.
+- The SQL engine downloads PGlite (about 5 MB) the first time you press Run on SQL; it is pinned to `0.5.8` in `web/runner.js` and `package.json`.
 - The `pyodide` and `typescript` versions are pinned (`0.26.4`, `5.4.5`) in `web/runner.js` and `package.json`; keep them in sync if you upgrade.

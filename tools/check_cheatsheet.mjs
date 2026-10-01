@@ -46,7 +46,7 @@ let pass = 0, fail = 0, skipped = 0;
 for (const sec of sections) {
   for (const e of sec.entries) {
     for (const [lang, b] of Object.entries(e.code)) {
-      if (!want(lang)) continue;
+      if (lang === "sql" || !want(lang)) continue;   // SQL examples are checked by tools/check_sql.mjs
       if (!b.run) { skipped++; continue; }
       const label = `${sec.title} / ${e.title} [${lang}]`;
       try {

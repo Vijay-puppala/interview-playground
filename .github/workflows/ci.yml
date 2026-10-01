@@ -25,6 +25,8 @@ jobs:
         run: python tools/export_cases.py && npm run test:ts
       - name: Cheat-sheet examples print their documented output (Node, TypeScript, Pyodide)
         run: npm run test:cheatsheet
+      - name: SQL solutions and SQL cheat-sheet examples run on PostgreSQL (PGlite)
+        run: npm run test:sql
       - name: Generated site data is up to date
         run: |
           python tools/build_site.py
