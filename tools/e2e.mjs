@@ -47,7 +47,7 @@ const check = async (name, fn) => {
 const eq = (a, b, msg) => { if (a !== b) throw new Error(`${msg || "assert"}: got ${JSON.stringify(a)} want ${JSON.stringify(b)}`); };
 const setCode = async (sel, code) => { await page.fill(sel, code); };
 
-await page.goto(base);
+await page.goto(base + "#problems");
 
 await check("loads with 330 problems and no console errors", async () => {
   await page.waitForSelector("#plist button");
@@ -55,13 +55,12 @@ await check("loads with 330 problems and no console errors", async () => {
   eq(errors.length, 0, errors.join(" | "));
 });
 
-await check("dark / light toggle", async () => {
-  const before = await page.getAttribute("html", "data-theme");
-  await page.click("#themeBtn");
-  const after = await page.getAttribute("html", "data-theme");
-  if (before === after) throw new Error("theme did not change");
-  await page.click("#themeBtn");
-  eq(await page.getAttribute("html", "data-theme"), before, "restored");
+await check("light / dark follows the system setting (no manual toggle)", async () => {
+  eq(await page.locator("#themeBtn").count(), 0, "no toggle button");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.waitForFunction(() => document.documentElement.getAttribute("data-theme") === "dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.waitForFunction(() => document.documentElement.getAttribute("data-theme") === "light");
 });
 
 await check("search and category filter", async () => {
@@ -284,13 +283,21 @@ await check("Playground: python asyncio.run(main()) prints its output", async ()
   await page.waitForFunction(() => document.querySelector("#pgOut")?.textContent.includes("ZeroDivisionError"), null, { timeout: 30000 });
 });
 
-await check("home dashboard: hero, stats and progress by topic", async () => {
+await check("home: options first, then the author; no sidebar or progress on Home; progress lives under Problems", async () => {
   await page.setViewportSize({ width: 1360, height: 860 });
   await page.goto(base + "#home");
   await page.waitForSelector(".hero");
-  if (!(await page.textContent(".hero")).includes("Welcome back")) throw new Error("hero text missing");
-  eq(await page.locator(".stat").count(), 4, "stat tiles");
-  eq(await page.locator(".cat-row").count(), 7, "topic rows");
+  if (!(await page.textContent(".hero")).includes("SDET Interview Playground")) throw new Error("hero text missing");
+  const order = await page.evaluate(() => document.querySelector("#viewHome .quick").getBoundingClientRect().top < document.querySelector("#viewHome .author").getBoundingClientRect().top);
+  eq(order, true, "options above the author section");
+  eq(await page.locator("#sidebar").isVisible(), false, "no sidebar on Home");
+  eq(await page.locator("#viewHome .stat, #viewHome .cat-row").count(), 0, "no progress widgets on Home");
+  eq(await page.locator("#viewHome .author").getByText("Source", { exact: true }).count(), 0, "no Source link");
+  await page.click('.tab[data-view="problems"]');
+  await page.waitForSelector("#viewProblems .stat");
+  eq(await page.locator("#sidebar").isVisible(), true, "sidebar on Problems");
+  eq(await page.locator("#viewProblems .stat").count(), 3, "stat tiles");
+  eq(await page.locator(".cat-row[data-cat]").count(), 7, "topic rows");
   await page.click('.cat-row[data-cat="strings"]');
   await page.waitForSelector("#viewProblems:not([hidden]) h1.title");
   if (!/^#p\d{3}$/.test(await page.evaluate(() => location.hash))) throw new Error("did not open a problem");
@@ -343,24 +350,21 @@ await check("cheat sheet deep link scrolls the entry into view", async () => {
   if (top < 0 || top > 300) throw new Error("entry not scrolled into view, top=" + top);
 });
 
-await check("colour themes: picker switches palette and mode, and both persist", async () => {
+await check("colour themes: picker switches the colour theme and it persists", async () => {
   await page.goto(base + "#home");
   await page.waitForSelector(".hero");
   await page.click("#paletteBtn");
   await page.waitForSelector("#palette:not([hidden])");
   await page.click('#palette [data-palette="ochin"]');
   eq(await page.getAttribute("html", "data-palette"), "ochin", "palette");
-  await page.click('#palette [data-mode="dark"]');
-  eq(await page.getAttribute("html", "data-theme"), "dark", "mode");
+  eq(await page.locator("#palette [data-mode]").count(), 0, "no manual mode switch");
   await page.keyboard.press("Escape");
   eq(await page.locator("#palette").isHidden(), true, "Escape closes the picker");
   await page.reload();
   await page.waitForSelector(".hero");
   eq(await page.getAttribute("html", "data-palette"), "ochin", "palette persisted");
-  eq(await page.getAttribute("html", "data-theme"), "dark", "mode persisted");
   await page.click("#paletteBtn");
-  await page.click('#palette [data-palette="aubergine"]');
-  await page.click('#palette [data-mode="light"]');
+  await page.click('#palette [data-palette="portfolio"]');
   await page.keyboard.press("Escape");
 });
 
@@ -375,7 +379,7 @@ await check("colour themes: every palette is readable (WCAG AA) in light and dar
     const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
     const root = document.documentElement;
     const out = [];
-    for (const pal of ["aubergine", "ochin", "monument", "hoth", "choco-mint", "sweet-treat"]) {
+    for (const pal of ["portfolio", "aubergine", "ochin", "monument", "hoth", "choco-mint", "sweet-treat"]) {
       for (const mode of ["light", "dark"]) {
         root.setAttribute("data-palette", pal); root.setAttribute("data-theme", mode);
         const v = (n) => parse(getComputedStyle(root).getPropertyValue(n));
@@ -399,7 +403,7 @@ await check("colour themes: every palette is readable (WCAG AA) in light and dar
         }
       }
     }
-    root.setAttribute("data-palette", "aubergine"); root.setAttribute("data-theme", "light");
+    root.setAttribute("data-palette", "portfolio"); root.setAttribute("data-theme", "light");
     return out;
   });
   if (failures.length) throw new Error(failures.length + " contrast failures: " + failures.slice(0, 6).join(" | "));
@@ -513,6 +517,67 @@ await check("SQL: tables page and quick search", async () => {
   await page.keyboard.press("Escape");
 });
 
+await check("editor: syntax highlighting overlay follows the text (SQL, Python) and stays aligned", async () => {
+  await page.goto(base + "#sql/schema");
+  await page.waitForSelector("#tryHost textarea");
+  await page.fill("#tryHost textarea", "SELECT COUNT(*) -- note\nFROM employees WHERE name = 'x';");
+  const kinds = await page.$$eval("#tryHost .ed-hl span", (els) => els.map((e) => e.className).join(" "));
+  for (const k of ["tok-k", "tok-f", "tok-c", "tok-s"]) if (!kinds.includes(k)) throw new Error("missing " + k + " in " + kinds);
+  const same = await page.evaluate(() => {
+    const ta = document.querySelector("#tryHost textarea"), hl = document.querySelector("#tryHost .ed-hl");
+    const a = ta.getBoundingClientRect(), b = hl.getBoundingClientRect();
+    return Math.abs(a.left - b.left) < 1 && Math.abs(a.top - b.top) < 1 && Math.abs(a.width - b.width) < 1;
+  });
+  eq(same, true, "overlay aligned with the textarea");
+  await page.goto(base + "#playground");
+  await page.waitForSelector(".ed-hl [class^=tok-]", { state: "attached" });
+});
+
+await check("site title and author links (GitHub, LinkedIn)", async () => {
+  await page.goto(base + "#home");
+  await page.waitForSelector(".author");
+  if (!/SDET Interview Playground/.test(await page.title())) throw new Error("title: " + await page.title());
+  const hrefs = await page.$$eval(".author a", (a) => a.map((x) => x.href));
+  if (!hrefs.includes("https://github.com/Vijay-puppala")) throw new Error("GitHub link missing");
+  if (!hrefs.includes("https://www.linkedin.com/in/vijayanand-puppala/")) throw new Error("LinkedIn link missing");
+  for (const u of ["https://vijayanand-puppala-data-portfolio.vercel.app/", "https://vijayanand-puppala-data-portfolio.lovable.app/"]) if (!hrefs.includes(u)) throw new Error("website missing " + u);
+  if (!/Vijay-puppala/.test(await page.textContent(".author"))) throw new Error("author credit missing");
+  if (!/Quality Engineering Manager/.test(await page.textContent(".author"))) throw new Error("author role missing");
+});
+
+await check("brand name top left, About pinned in the rail, About page", async () => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(base + "#p001");
+  await page.waitForSelector("#brandName");
+  eq((await page.textContent("#brandName .long")).trim(), "SDET Interview Playground", "brand text");
+  const box = await page.locator("#brandName").boundingBox();
+  if (box.x > 200 || box.y > 50) throw new Error("brand is not in the top-left corner " + JSON.stringify(box));
+  eq(await page.locator("#sideCredit").count(), 0, "no author footer inside the sidebar any more");
+  const rail = await page.locator(".rail-about").boundingBox();
+  if (rail.y < 500) throw new Error("About is not pinned to the bottom of the rail: " + rail.y);
+  await page.click(".rail-about");
+  await page.waitForSelector("#viewAbout .author");
+  if (!/Quality Engineering Manager/.test(await page.textContent("#viewAbout"))) throw new Error("About page content missing");
+  await page.goto(base + "#cheatsheet");
+  await page.click(".rail-about");
+  await page.waitForSelector("#viewAbout .author");
+});
+
+await check("author section: brand logos and icons, no Source link", async () => {
+  await page.goto(base + "#home");
+  await page.waitForSelector("#viewHome .author .pillar");
+  eq(await page.locator("#viewHome .author .pillar").count(), 9, "competency cards");
+  eq(await page.locator("#viewHome .author .exp-card").count(), 0, "no detailed experience section");
+  eq(await page.locator("#viewHome .author .job").count(), 3, "career entries");
+  if (!/Hitachi Vantara India Pvt\. Ltd \(Pentaho\)/.test(await page.textContent("#viewHome .author .career")) || !/Jan 2022 – Present/.test(await page.textContent("#viewHome .author .career"))) throw new Error("career content missing");
+  if (/Professional experience|Testing skills/i.test(await page.textContent("#viewHome .author"))) throw new Error("removed sections still shown");
+  if (!/Titan Awards/.test(await page.textContent("#viewHome .author"))) throw new Error("awards missing");
+  eq((await page.locator("#viewHome .author .tool svg path").count()) >= 18, true, "tool logos");
+  if (/\bSource\b/.test(await page.textContent(".author"))) throw new Error("Source link still shown");
+  await page.click('.quick a[href="#sql"]');
+  await page.waitForSelector("#viewSql .hero, #viewSql .stats");
+});
+
 await check("mobile layout: menu opens the problem list", async () => {
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto(base + "#p002");
@@ -531,7 +596,7 @@ await page.setViewportSize({ width: 1280, height: 900 });
 await page.goto(base + "#p017");
 await page.waitForSelector("#runBtn");
 await page.screenshot({ path: path.join(root, "build", "shot-problem-light.png") });
-await page.click("#themeBtn");
+await page.emulateMedia({ colorScheme: "dark" });
 await page.screenshot({ path: path.join(root, "build", "shot-problem-dark.png") });
 
 await browser.close();

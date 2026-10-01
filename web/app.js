@@ -1,4 +1,4 @@
-/* QA Interview Playground: UI logic (no framework, no build step). */
+/* SDET Interview Playground: UI logic (no framework, no build step). */
 (function () {
   "use strict";
   const $ = (sel, el = document) => el.querySelector(sel);
@@ -31,7 +31,7 @@
   };
 
   let sqlTab = null;   // created once the helpers below exist
-  const view = { home: $("#viewHome"), problems: $("#viewProblems"), cheatsheet: $("#viewCheatsheet"), sql: $("#viewSql"), playground: $("#viewPlayground") };
+  const view = { home: $("#viewHome"), problems: $("#viewProblems"), cheatsheet: $("#viewCheatsheet"), about: $("#viewAbout"), sql: $("#viewSql"), playground: $("#viewPlayground") };
 
   /* ------------------------------------------------------------- helpers */
   function pyRepr(v) {
@@ -59,6 +59,7 @@
 
   /* ------------------------------------------------- mode + colour theme */
   const PALETTES = [
+    { id: "portfolio", name: "Portfolio", top: "#070a20", side: "#0b1030", btn: "#2dd4bf" },
     { id: "aubergine", name: "Aubergine", top: "#350d36", side: "#3f0e40", btn: "#007a5a" },
     { id: "ochin", name: "Ochin", top: "#263341", side: "#303e4d", btn: "#2f6da3" },
     { id: "monument", name: "Monument", top: "#085b5f", side: "#0b6f73", btn: "#f79f66" },
@@ -68,42 +69,30 @@
   ];
   const mql = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : { matches: false };
   const root = document.documentElement;
-  const getMode = () => { const m = store.get("qa.theme", "system"); return m === "light" || m === "dark" ? m : "system"; };
-  const getPalette = () => (PALETTES.some((p) => p.id === store.get("qa.palette")) ? store.get("qa.palette") : "aubergine");
-  const resolveMode = (m) => (m === "system" ? (mql.matches ? "dark" : "light") : m);
+  const getPalette = () => (PALETTES.some((p) => p.id === store.get("qa.palette")) ? store.get("qa.palette") : "portfolio");
 
-  function applyMode(m) {
-    store.set("qa.theme", m);
-    root.setAttribute("data-theme", resolveMode(m));
-    syncPalettePanel();
-  }
+  // Light / dark always follows the operating system; only the colour theme is a choice.
+  const applyMode = () => root.setAttribute("data-theme", mql.matches ? "dark" : "light");
   function applyPalette(id) {
     store.set("qa.palette", id);
     root.setAttribute("data-palette", id);
     syncPalettePanel();
   }
-  if (mql.addEventListener) mql.addEventListener("change", () => { if (getMode() === "system") applyMode("system"); });
-  $("#themeBtn").addEventListener("click", () => applyMode(root.getAttribute("data-theme") === "dark" ? "light" : "dark"));
+  if (mql.addEventListener) mql.addEventListener("change", applyMode);
+  applyMode();
 
   const palette = $("#palette");
   palette.innerHTML = `
-    <h3>Mode</h3>
-    <div class="mode" role="radiogroup" aria-label="Mode">
-      ${["light", "dark", "system"].map((m) => `<button role="radio" data-mode="${m}">${m[0].toUpperCase() + m.slice(1)}</button>`).join("")}
-    </div>
     <h3>Colour theme</h3>
     <div class="pal-grid" role="radiogroup" aria-label="Colour theme">
       ${PALETTES.map((p) => `<button class="pal" role="radio" data-palette="${p.id}" style="--p-top:${p.top};--p-side:${p.side};--p-btn:${p.btn}">
         <span class="sw"><i></i><i></i><i></i></span>${esc(p.name)}</button>`).join("")}
     </div>`;
   function syncPalettePanel() {
-    $$("[data-mode]", palette).forEach((b) => b.setAttribute("aria-checked", String(b.dataset.mode === getMode())));
     $$("[data-palette]", palette).forEach((b) => b.setAttribute("aria-checked", String(b.dataset.palette === getPalette())));
   }
   palette.addEventListener("click", (e) => {
-    const m = e.target.closest("[data-mode]");
     const p = e.target.closest("[data-palette]");
-    if (m) applyMode(m.dataset.mode);
     if (p) applyPalette(p.dataset.palette);
   });
   const paletteBtn = $("#paletteBtn");
@@ -194,16 +183,20 @@
   /* --------------------------------------------------------------- editor */
   function createEditor(host, { value, lang, tall, onChange, onRun }) {
     host.innerHTML = `<div class="editor ${tall ? "tall" : ""}"><pre class="gutter" aria-hidden="true">1</pre>
-      <textarea spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Code editor"></textarea></div>`;
+      <div class="ed-wrap"><pre class="ed-hl" aria-hidden="true"></pre>
+      <textarea spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Code editor"></textarea></div></div>`;
     const ta = $("textarea", host);
     const gutter = $(".gutter", host);
+    const layer = $(".ed-hl", host);
+    const hlLang = lang === "py" ? "py" : lang === "sql" ? "sql" : "js";
     const indent = lang === "py" ? "    " : "  ";
     ta.value = value;
     const refresh = () => {
       const n = ta.value.split("\n").length;
       gutter.textContent = Array.from({ length: n }, (_, i) => i + 1).join("\n");
+      layer.innerHTML = highlight(ta.value, hlLang) + "\n";   // trailing newline keeps the last empty line in step
     };
-    ta.addEventListener("scroll", () => { gutter.scrollTop = ta.scrollTop; });
+    ta.addEventListener("scroll", () => { gutter.scrollTop = ta.scrollTop; layer.scrollTop = ta.scrollTop; layer.scrollLeft = ta.scrollLeft; });
     ta.addEventListener("input", () => { refresh(); onChange && onChange(ta.value); });
     ta.addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); onRun && onRun(); return; }
@@ -237,6 +230,8 @@
     book: '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M6 3h12a1 1 0 011 1v17l-7-4-7 4V4a1 1 0 011-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
     term: '<svg viewBox="0 0 24 24" width="22" height="22"><rect x="3" y="4" width="18" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 10l3 2.5L7 15M12.5 15H17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     table: '<svg viewBox="0 0 24 24" width="22" height="22"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 10h18M9 10v10" stroke="currentColor" stroke-width="1.8"/></svg>',
+    db: '<svg viewBox="0 0 24 24" width="22" height="22"><ellipse cx="12" cy="6" rx="7.5" ry="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4.5 6v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6M4.5 12v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
+    list: '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M9 6h11M9 12h11M9 18h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M3.500 6l1.200 1.200L7 4.900M3.500 12l1.200 1.200L7 10.900M3.500 18l1.200 1.200L7 16.900" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     flask: '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 001.3 2.2h12.4a1.5 1.5 0 001.3-2.2L14 9V3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
   };
 
@@ -245,60 +240,112 @@
     return all.find((p) => !state.solved.has(p.id)) || all[0];
   }
 
-  function renderHome() {
-    const total = PROBLEMS.length;
-    const solvedN = PROBLEMS.filter((p) => state.solved.has(p.id)).length;
-    const last = BY_ID[store.get("qa.last", null)];
-    const csEntries = (window.CHEATSHEET || []).reduce((n, s) => n + s.entries.length, 0);
-    const recent = store.get("qa.recent", []).filter((id) => BY_ID[id]).slice(0, 5);
-    const rows = CATS.map((c) => {
-      const all = PROBLEMS.filter((p) => p.category === c.id);
-      return { c, n: all.length, s: all.filter((p) => state.solved.has(p.id)).length };
-    });
-    view.home.innerHTML = `
-      <section class="hero">
-        <h1>Welcome back</h1>
-        <p>${total} interview problems, a ${csEntries}-entry cheat sheet and an in-browser playground for SDET and QA engineers,
-        in Python, JavaScript and TypeScript. Pick up where you left off, or jump straight to anything with <kbd>Ctrl</kbd> <kbd>K</kbd>.</p>
-        <div class="toolbar">
-          ${last ? `<a class="btn primary" href="#${last.id}">Continue: ${esc(last.title)}</a>` : `<a class="btn primary" href="#p001">Start with problem 1</a>`}
-          <a class="btn" href="#cheatsheet">Cheat sheet</a>
-          <a class="btn" href="#playground">Playground</a>
-        </div>
-      </section>
+  /** Inline SVG from web/icons.js (brand logos in their colour, UI icons in the current text colour). */
+  const ico = (key, size = 18) => {
+    const i = (window.ICONS || {})[key];
+    return i ? `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" fill="currentColor"${i.color ? ` style="color:${i.color}"` : ""}><path d="${i.d}"/></svg>` : "";
+  };
 
-      <div class="stats">
-        <div class="stat"><b>${solvedN}<small class="muted" style="font-size:16px;font-weight:700"> / ${total}</small></b><span>Problems solved</span></div>
-        <div class="stat"><b>${Math.round((100 * solvedN) / total)}%</b><span>Complete</span></div>
-        <div class="stat"><b>${csEntries}</b><span>Cheat-sheet entries</span></div>
-        <div class="stat"><b>3</b><span>Languages: Python, JavaScript, TypeScript</span></div>
+  function authorFooter() {
+    const a = SITE.author;
+    const chip = (url, label, key) => (url ? `<a class="contact-chip" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${ico(key)}<span>${esc(label)}</span></a>` : "");
+    const accents = ["acc1", "acc2", "acc3", "acc4", "acc5", "acc6"];
+    const head = (key, text) => `<h3 class="a-h">${ico(key, 16)}${esc(text)}</h3>`;
+    return `<section class="author" id="about" aria-label="About the author">
+      <span class="kicker">${ico("shield", 16)}${esc(a.kicker)}</span>
+      <h2 class="a-name">${esc(a.name)}</h2>
+      <p class="a-role">${esc(a.role)} <span class="muted">· @${esc(a.handle)}</span></p>
+      <p class="a-sum">${esc(a.summary)}</p>
+      <div class="contact-row">
+        <span class="contact-chip">${ico("pin")}<span>${esc(a.location)}</span></span>
+        <a class="contact-chip" href="mailto:${esc(a.email)}">${ico("mail")}<span>${esc(a.email)}</span></a>
+        ${chip(a.linkedin, "LinkedIn", "linkedin")}${chip(a.github, "GitHub", "github")}${(a.websites || []).map((w) => chip(w.url, w.label, "web")).join("")}
       </div>
 
-      <div class="h2row"><h2>Progress by topic</h2><span class="muted">Click a topic to continue it</span></div>
-      <div>${rows.map(({ c, n, s }) => `<button class="cat-row" data-cat="${c.id}"><span><b>${esc(c.label)}</b></span>
-        <span class="bar"><i style="width:${(100 * s) / n}%"></i></span><span class="n">${s} / ${n}</span></button>`).join("")}</div>
+      ${head("summary", "Professional summary")}
+      <p class="a-lead"><b>${esc(a.summaryTitle)}</b><br><span class="muted">${esc(a.summarySub)}</span></p>
+      <div class="sum-grid">${a.summaryPoints.map((p, i) => `<div class="sum" style="--acc: var(--${accents[i % 6]})"><span class="si">${ico(p.icon, 22)}</span><p>${p.html}</p></div>`).join("")}</div>
 
-      <div class="h2row"><h2>Jump in</h2></div>
+      ${head("puzzle", "Core competencies")}
+      <div class="pillars">${a.pillars.map((p, i) => `<div class="pillar" style="--acc: var(--${accents[i % 6]})"><span class="pi">${ico(p.icon, 24)}</span><b>${esc(p.title)}</b><span>${esc(p.text)}</span></div>`).join("")}</div>
+
+      ${head("briefcase", "Career")}
+      <div class="career">${a.career.map((c, i) => `<article class="job" style="--acc: var(--${accents[i % 6]})">
+        <span class="logo-b">${ico(c.icon, 30)}</span>
+        <div class="job-body"><h4>${esc(c.company)}</h4><span class="muted loc">${ico("pin", 14)} ${esc(c.place)}</span>
+          <b class="pos">${esc(c.position)}</b><span class="date${c.current ? " now" : ""}">${esc(c.dates)}</span></div>
+      </article>`).join("")}</div>
+
+      ${head("tools", "Technical skills")}
+      <div class="tool-groups">${a.toolGroups.map((g) => `<div class="tg"><h4>${ico(g.icon, 15)}${esc(g.title)}</h4><div class="tools">${g.tools.map(([n, k]) => `<span class="tool">${ico(k, 18)}${esc(n)}</span>`).join("")}</div></div>`).join("")}</div>
+
+      ${head("school", "Education & recognition")}
+      <div class="edu">${ico(a.education.icon, 26)}<div><b>${esc(a.education.title)}</b><span>${esc(a.education.where)}</span><span class="muted">${esc(a.education.detail)}</span></div></div>
+      <div class="awards">${a.awards.map((x) => `<div class="award"><span class="ai">${ico(x.icon, 20)}</span><p>${x.html}</p></div>`).join("")}</div>
+    </section>`;
+  }
+
+  function renderHome() {
+    const total = PROBLEMS.length;
+    const csEntries = (window.CHEATSHEET || []).reduce((n, s) => n + s.entries.length, 0);
+    const sqlTotal = window.SQL_INDEX.patterns.reduce((n, p) => n + p.questions.length, 0);
+    view.home.innerHTML = `
+      <section class="hero">
+        <span class="kicker"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 3l7 3v5c0 4.500-3 8.200-7 10-4-1.800-7-5.500-7-10V6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2.200 2.200L15.500 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Python · JavaScript · TypeScript · SQL</span>
+        <h1>${esc(SITE.name)}</h1>
+        <p class="tag">${esc(SITE.tagline)}</p>
+        <p>${total} interview problems, a ${csEntries}-entry cheat sheet, ${sqlTotal} SQL questions and an in-browser playground for SDET and QA engineers.
+        Jump straight to anything with <kbd>Ctrl</kbd> <kbd>K</kbd>.</p>
+        <div class="badge-row"><span class="pill cyan">${total} problems</span><span class="pill purple">${sqlTotal} SQL questions</span><span class="pill amber">${csEntries} cheat-sheet entries</span><span class="pill green">pytest &amp; pandas</span><span class="pill pink">Runs in your browser</span></div>
+      </section>
+
+      <div class="h2row"><h2>What you can do here</h2></div>
       <div class="quick">
+        <a class="qcard" href="#problems"><span class="ic">${ICONS.list}</span><div><b>Problems</b><span>${total} interview problems in Python, JavaScript and TypeScript, with hidden solutions</span></div></a>
         <a class="qcard" href="#cheatsheet"><span class="ic">${ICONS.book}</span><div><b>Cheat sheet</b><span>${csEntries} concepts and methods with runnable examples</span></div></a>
+        <a class="qcard" href="#sql"><span class="ic">${ICONS.db}</span><div><b>SQL practice</b><span>${window.SQL_INDEX.patterns.length} patterns, ${sqlTotal} questions on a real Postgres in your browser</span></div></a>
         <a class="qcard" href="#playground"><span class="ic">${ICONS.term}</span><div><b>Playground</b><span>Run any Python, JavaScript or TypeScript program</span></div></a>
         <a class="qcard" href="#${firstOf("data").id}"><span class="ic">${ICONS.table}</span><div><b>pandas &amp; PySpark</b><span>Data-validation problems for SDETs</span></div></a>
         <a class="qcard" href="#${firstOf("pytest").id}"><span class="ic">${ICONS.flask}</span><div><b>pytest scenarios</b><span>Fixtures, parametrize, mocking, page objects</span></div></a>
       </div>
 
+      ${authorFooter()}`;
+  }
+
+  /* Problems overview (#problems): progress lives here, not on Home */
+  function renderProblemsOverview() {
+    const total = PROBLEMS.length;
+    const solvedN = PROBLEMS.filter((p) => state.solved.has(p.id)).length;
+    const last = BY_ID[store.get("qa.last", null)];
+    const recent = store.get("qa.recent", []).filter((id) => BY_ID[id]).slice(0, 5);
+    const rows = CATS.map((c) => {
+      const all = PROBLEMS.filter((p) => p.category === c.id);
+      return { c, n: all.length, s: all.filter((p) => state.solved.has(p.id)).length };
+    });
+    view.problems.innerHTML = `
+      <div class="eyebrow-s">Problems</div>
+      <h1 class="title">Your progress</h1>
+      <div class="toolbar" style="margin:8px 0 4px">${last ? `<a class="btn primary" href="#${last.id}">Continue: ${esc(last.title)}</a>` : `<a class="btn primary" href="#p001">Start with problem 1</a>`}</div>
+      <div class="stats">
+        <div class="stat"><b>${solvedN}<small class="muted" style="font-size:16px;font-weight:700"> / ${total}</small></b><span>Problems solved</span></div>
+        <div class="stat"><b>${Math.round((100 * solvedN) / total)}%</b><span>Complete</span></div>
+        <div class="stat"><b>${total - solvedN}</b><span>Still to do</span></div>
+      </div>
+      <div class="h2row"><h2>Progress by topic</h2><span class="muted">Click a topic to continue it</span></div>
+      <div>${rows.map(({ c, n, s }) => `<button class="cat-row" data-cat="${c.id}"><span><b>${esc(c.label)}</b></span>
+        <span class="bar"><i style="width:${(100 * s) / n}%"></i></span><span class="n">${s} / ${n}</span></button>`).join("")}</div>
       ${recent.length ? `<div class="h2row"><h2>Recently solved</h2></div><div class="recent">${recent.map((id) => {
         const p = BY_ID[id];
         return `<a href="#${p.id}"><span class="num">${pad3(p.num)}</span><span>${esc(p.title)}</span><span class="ok">✓</span></a>`;
       }).join("")}</div>` : ""}`;
 
-    $$(".cat-row", view.home).forEach((b) => b.addEventListener("click", () => {
+    $$(".cat-row[data-cat]", view.problems).forEach((b) => b.addEventListener("click", () => {
       state.category = b.dataset.cat;
       renderChips();
       location.hash = firstOf(b.dataset.cat).id;
     }));
   }
 
-  /* ------------------------------------------------------- problems view */
   function renderProblem(p) {
     store.set("qa.last", p.id);
     const lang = effLang(p);
@@ -679,8 +726,7 @@
       { kind: "Page", title: "Playground", sub: "Run any program in your browser", go: "#playground" },
     ];
     const commands = [
-      { kind: "Command", title: "Toggle dark mode", sub: "Switch between light and dark", run: () => applyMode(root.getAttribute("data-theme") === "dark" ? "light" : "dark") },
-      { kind: "Command", title: "Choose a colour theme", sub: "Aubergine, Ochin, Monument, Hoth…", run: () => setPalette(true) },
+      { kind: "Command", title: "Choose a colour theme", sub: "Aubergine, Ochin, Monument, Hoth… (light / dark follows your system)", run: () => setPalette(true) },
       ...Object.entries(LANGS).map(([k, v]) => ({ kind: "Command", title: `Use ${v}`, sub: "Switch the language", run: () => setLang(k) })),
     ];
     const problems = PROBLEMS.map((p) => ({ kind: "Problem", title: p.title, sub: `#${pad3(p.num)} · ${CAT_LABEL[p.category]}`, go: `#${p.id}`, hay: `${p.title} ${p.fn.py} ${pad3(p.num)} ${CAT_LABEL[p.category]}` }));
@@ -744,8 +790,8 @@
   });
 
   /* ---------------------------------------------------------------- router */
-  const SIDE = { home: ["Problems", "Problems"], problems: ["Problems", "Problems"], cheatsheet: ["Cheat", "Cheat sheet"], sql: ["Sql", "SQL practice"], playground: ["Play", "Playground"] };
-  const TAB_FOR = { home: "home", problems: "problems", cheatsheet: "cheatsheet", sql: "sql", playground: "playground" };
+  const SIDE = { home: ["Problems", "Problems"], problems: ["Problems", "Problems"], cheatsheet: ["Cheat", "Cheat sheet"], sql: ["Sql", "SQL practice"], about: ["Problems", "Problems"], playground: ["Play", "Playground"] };
+  const TAB_FOR = { home: "home", problems: "problems", cheatsheet: "cheatsheet", sql: "sql", about: "about", playground: "playground" };
 
   function render() {
     syncLangUi();
@@ -762,22 +808,34 @@
     state.revealed = false;
 
     if (state.view === "playground") {
-      document.title = "Playground · QA Interview Playground";
+      document.title = `Playground · ${SITE.name}`;
       $("#sideSub").textContent = ext[state.lang];
       renderPlayground();
+    } else if (state.view === "about") {
+      document.title = `About the author · ${SITE.name}`;
+      $("#sideSub").textContent = `${PROBLEMS.length} problems`;
+      view.about.innerHTML = `<h1 class="title">About the author</h1>${authorFooter()}`;
     } else if (state.view === "sql") {
       $("#sideSub").textContent = `${sqlTab.IDX.patterns.length} patterns`;
       sqlTab.render(view.sql, state.sqlTail);
     } else if (state.view === "cheatsheet") {
-      document.title = "Cheat sheet · QA Interview Playground";
+      document.title = `Cheat sheet · ${SITE.name}`;
       renderCheatsheet();
     } else if (state.view === "problems" && state.current && BY_ID[state.current]) {
       const p = BY_ID[state.current];
-      document.title = `${p.title} · QA Interview Playground`;
+      document.title = `${p.title} · ${SITE.name}`;
       $("#sideSub").textContent = `${PROBLEMS.length} problems`;
       renderProblem(p);
+    } else if (state.view === "problems") {
+      document.title = `Problems · ${SITE.name}`;
+      $("#sideSub").textContent = `${PROBLEMS.length} problems`;
+      renderProblemsOverview();
+    } else if (state.view === "problems") {
+      document.title = `Problems · ${SITE.name}`;
+      $("#sideSub").textContent = `${PROBLEMS.length} problems`;
+      renderProblemsOverview();
     } else {
-      document.title = "QA Interview Playground";
+      document.title = `${SITE.name} · ${SITE.tagline}`;
       $("#sideSub").textContent = `${PROBLEMS.length} problems`;
       renderHome();
     }
@@ -789,7 +847,10 @@
     const [head, tail] = location.hash.replace(/^#/, "").split("/");
     if (head === "playground") state.view = "playground";
     else if (head === "cheatsheet") state.view = "cheatsheet";
+    else if (head === "about") state.view = "about";
     else if (head === "sql") { state.view = "sql"; state.sqlTail = tail || null; }
+    else if (head === "problems") { state.view = "problems"; state.current = null; }
+    else if (head === "problems") { state.view = "problems"; state.current = null; }
     else if (BY_ID[head]) { state.view = "problems"; state.current = head; }
     else { state.view = "home"; state.current = null; }
     state.token++;
@@ -804,7 +865,7 @@
 
   $$(".tab").forEach((t) => t.addEventListener("click", () => {
     const v = t.dataset.view;
-    location.hash = v === "problems" ? (state.current || store.get("qa.last", "p001")) : v;
+    location.hash = v;
   }));
   $("#brand").addEventListener("click", (e) => { e.preventDefault(); location.hash = "home"; if (state.view === "home") route(); });
   window.addEventListener("hashchange", route);
