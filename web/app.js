@@ -59,6 +59,7 @@
 
   /* ------------------------------------------------- mode + colour theme */
   const PALETTES = [
+    { id: "portfolio", name: "Portfolio", top: "#070a20", side: "#0b1030", btn: "#2dd4bf" },
     { id: "aubergine", name: "Aubergine", top: "#350d36", side: "#3f0e40", btn: "#007a5a" },
     { id: "ochin", name: "Ochin", top: "#263341", side: "#303e4d", btn: "#2f6da3" },
     { id: "monument", name: "Monument", top: "#085b5f", side: "#0b6f73", btn: "#f79f66" },
@@ -68,7 +69,7 @@
   ];
   const mql = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : { matches: false };
   const root = document.documentElement;
-  const getPalette = () => (PALETTES.some((p) => p.id === store.get("qa.palette")) ? store.get("qa.palette") : "aubergine");
+  const getPalette = () => (PALETTES.some((p) => p.id === store.get("qa.palette")) ? store.get("qa.palette") : "portfolio");
 
   // Light / dark always follows the operating system; only the colour theme is a choice.
   const applyMode = () => root.setAttribute("data-theme", mql.matches ? "dark" : "light");
