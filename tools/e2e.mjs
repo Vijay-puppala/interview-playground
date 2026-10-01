@@ -55,13 +55,12 @@ await check("loads with 330 problems and no console errors", async () => {
   eq(errors.length, 0, errors.join(" | "));
 });
 
-await check("dark / light toggle", async () => {
-  const before = await page.getAttribute("html", "data-theme");
-  await page.click("#themeBtn");
-  const after = await page.getAttribute("html", "data-theme");
-  if (before === after) throw new Error("theme did not change");
-  await page.click("#themeBtn");
-  eq(await page.getAttribute("html", "data-theme"), before, "restored");
+await check("light / dark follows the system setting (no manual toggle)", async () => {
+  eq(await page.locator("#themeBtn").count(), 0, "no toggle button");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.waitForFunction(() => document.documentElement.getAttribute("data-theme") === "dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.waitForFunction(() => document.documentElement.getAttribute("data-theme") === "light");
 });
 
 await check("search and category filter", async () => {
@@ -288,7 +287,7 @@ await check("home dashboard: hero, stats and progress by topic", async () => {
   await page.setViewportSize({ width: 1360, height: 860 });
   await page.goto(base + "#home");
   await page.waitForSelector(".hero");
-  if (!(await page.textContent(".hero")).includes("Welcome back")) throw new Error("hero text missing");
+  if (!(await page.textContent(".hero")).includes("SDET Interview Playground")) throw new Error("hero text missing");
   eq(await page.locator(".stat").count(), 4, "stat tiles");
   eq(await page.locator(".cat-row[data-cat]").count(), 7, "topic rows");
   await page.click('.cat-row[data-cat="strings"]');
@@ -343,24 +342,21 @@ await check("cheat sheet deep link scrolls the entry into view", async () => {
   if (top < 0 || top > 300) throw new Error("entry not scrolled into view, top=" + top);
 });
 
-await check("colour themes: picker switches palette and mode, and both persist", async () => {
+await check("colour themes: picker switches the colour theme and it persists", async () => {
   await page.goto(base + "#home");
   await page.waitForSelector(".hero");
   await page.click("#paletteBtn");
   await page.waitForSelector("#palette:not([hidden])");
   await page.click('#palette [data-palette="ochin"]');
   eq(await page.getAttribute("html", "data-palette"), "ochin", "palette");
-  await page.click('#palette [data-mode="dark"]');
-  eq(await page.getAttribute("html", "data-theme"), "dark", "mode");
+  eq(await page.locator("#palette [data-mode]").count(), 0, "no manual mode switch");
   await page.keyboard.press("Escape");
   eq(await page.locator("#palette").isHidden(), true, "Escape closes the picker");
   await page.reload();
   await page.waitForSelector(".hero");
   eq(await page.getAttribute("html", "data-palette"), "ochin", "palette persisted");
-  eq(await page.getAttribute("html", "data-theme"), "dark", "mode persisted");
   await page.click("#paletteBtn");
   await page.click('#palette [data-palette="aubergine"]');
-  await page.click('#palette [data-mode="light"]');
   await page.keyboard.press("Escape");
 });
 
@@ -529,6 +525,17 @@ await check("editor: syntax highlighting overlay follows the text (SQL, Python) 
   await page.waitForSelector(".ed-hl [class^=tok-]", { state: "attached" });
 });
 
+await check("site title and author links (GitHub, LinkedIn)", async () => {
+  await page.goto(base + "#home");
+  await page.waitForSelector(".site-foot");
+  if (!/SDET Interview Playground/.test(await page.title())) throw new Error("title: " + await page.title());
+  const hrefs = await page.$$eval(".site-foot nav a", (a) => a.map((x) => x.href));
+  if (!hrefs.includes("https://github.com/Vijay-puppala")) throw new Error("GitHub link missing");
+  if (!hrefs.includes("https://www.linkedin.com/in/vijayanand-puppala/")) throw new Error("LinkedIn link missing");
+  for (const u of ["https://vijayanand-puppala-data-portfolio.vercel.app/", "https://vijayanand-puppala-data-portfolio.lovable.app/"]) if (!hrefs.includes(u)) throw new Error("website missing " + u);
+  if (!/Vijay-puppala/.test(await page.textContent(".site-foot"))) throw new Error("author credit missing");
+});
+
 await check("home dashboard shows SQL progress", async () => {
   await page.goto(base + "#home");
   await page.waitForSelector('.cat-row[data-sql]');
@@ -556,7 +563,7 @@ await page.setViewportSize({ width: 1280, height: 900 });
 await page.goto(base + "#p017");
 await page.waitForSelector("#runBtn");
 await page.screenshot({ path: path.join(root, "build", "shot-problem-light.png") });
-await page.click("#themeBtn");
+await page.emulateMedia({ colorScheme: "dark" });
 await page.screenshot({ path: path.join(root, "build", "shot-problem-dark.png") });
 
 await browser.close();

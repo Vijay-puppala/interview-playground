@@ -113,7 +113,7 @@ window.SqlTab = function (deps) {
   /* ------------------------------------------------------------ pages */
   function pageOverview(el) {
     const n = allQuestionIds.filter((id) => done.has(id)).length;
-    document.title = "SQL · QA Interview Playground";
+    document.title = `SQL · ${window.SITE.name}`;
     el.innerHTML = `
       <div class="hero"><h1>SQL practice</h1>
         <p>${IDX.patterns.length} patterns, ${allQuestionIds.length} questions. Every query runs on a real PostgreSQL database inside your browser, so you can try an answer before you look at ours.</p>
@@ -124,7 +124,7 @@ window.SqlTab = function (deps) {
   }
 
   function pageSchema(el) {
-    document.title = "Tables · SQL · QA Interview Playground";
+    document.title = `Tables · SQL · ${window.SITE.name}`;
     el.innerHTML = `
       <div class="eyebrow"><span class="badge">SQL</span></div>
       <h1 class="title">Tables &amp; try-it box</h1>
@@ -213,7 +213,7 @@ window.SqlTab = function (deps) {
     try { p = await loadPattern(meta.num); } catch (e) { el.innerHTML = `<div class="sql-err">${esc(e.message)}</div>`; return; }
     if (token !== S.token) return;
     store.set("qa.sql.last", p.slug);
-    document.title = `${p.title} · SQL · QA Interview Playground`;
+    document.title = `${p.title} · SQL · ${window.SITE.name}`;
     const prev = IDX.patterns[meta.num - 2], next = IDX.patterns[meta.num];
     el.innerHTML = `
       <div class="eyebrow"><span class="code-inline">#${two(p.num)}</span><span class="badge">${esc(p.category)}</span><span class="badge">${esc(p.concept)}</span><span>Pattern ${p.num} of ${IDX.patterns.length}</span></div>
