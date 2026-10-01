@@ -269,18 +269,8 @@
       ${head("puzzle", "Core competencies")}
       <div class="pillars">${a.pillars.map((p, i) => `<div class="pillar" style="--acc: var(--${accents[i % 6]})"><span class="pi">${ico(p.icon, 24)}</span><b>${esc(p.title)}</b><span>${esc(p.text)}</span></div>`).join("")}</div>
 
-      ${head("briefcase", "Professional experience")}
-      <p class="muted a-sub">${esc(a.experienceSub)}</p>
-      <div class="exp-list">${a.experience.map((e, i) => `<article class="exp-card" style="--acc: var(--${accents[i % 6]})">
-        <header>${ico(e.icon, 34)}<div><h4>${esc(e.company)}</h4><span class="muted">${ico("pin", 14)} ${esc(e.place)}</span></div></header>
-        <ol class="roles">${e.roles.map(([r, d]) => `<li><b>${esc(r)}</b><span class="date">${esc(d)}</span></li>`).join("")}</ol>
-        <div class="project"><b>${ico("folder", 16)} Project: ${esc(e.project)}</b><p>${esc(e.about)}</p>
-          <ul>${e.points.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>
-      </article>`).join("")}</div>
-
       ${head("tools", "Technical skills")}
-      <div class="tool-groups">${a.toolGroups.map((g) => `<div class="tg"><h4>${ico(g.icon, 15)}${esc(g.title)}</h4><div class="tools">${g.tools.map(([n, k]) => `<span class="tool">${ico(k, 18)}${esc(n)}</span>`).join("")}</div></div>`).join("")}
-        <div class="tg"><h4>${ico("flask", 15)}Testing skills</h4><div class="tools">${a.testing.map((n) => `<span class="chip-s">${esc(n)}</span>`).join("")}</div></div></div>
+      <div class="tool-groups">${a.toolGroups.map((g) => `<div class="tg"><h4>${ico(g.icon, 15)}${esc(g.title)}</h4><div class="tools">${g.tools.map(([n, k]) => `<span class="tool">${ico(k, 18)}${esc(n)}</span>`).join("")}</div></div>`).join("")}</div>
 
       ${head("school", "Education & recognition")}
       <div class="edu">${ico(a.education.icon, 26)}<div><b>${esc(a.education.title)}</b><span>${esc(a.education.where)}</span><span class="muted">${esc(a.education.detail)}</span></div></div>

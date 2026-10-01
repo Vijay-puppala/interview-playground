@@ -566,8 +566,9 @@ await check("author section: brand logos and icons, no Source link", async () =>
   await page.goto(base + "#home");
   await page.waitForSelector("#viewHome .author .pillar");
   eq(await page.locator("#viewHome .author .pillar").count(), 9, "competency cards");
-  eq(await page.locator("#viewHome .author .exp-card").count(), 3, "employers");
-  if (!/Hitachi Vantara/.test(await page.textContent("#viewHome .author")) || !/Titan Awards/.test(await page.textContent("#viewHome .author"))) throw new Error("experience or awards missing");
+  eq(await page.locator("#viewHome .author .exp-card").count(), 0, "no experience section");
+  if (/Professional experience|Testing skills/i.test(await page.textContent("#viewHome .author"))) throw new Error("removed sections still shown");
+  if (!/Titan Awards/.test(await page.textContent("#viewHome .author"))) throw new Error("awards missing");
   eq((await page.locator("#viewHome .author .tool svg path").count()) >= 18, true, "tool logos");
   if (/\bSource\b/.test(await page.textContent(".author"))) throw new Error("Source link still shown");
   await page.click('.quick a[href="#sql"]');
