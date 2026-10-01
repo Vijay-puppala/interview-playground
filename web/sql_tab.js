@@ -35,6 +35,13 @@ window.SqlTab = function (deps) {
   const paras = (s) => String(s || "").split(/\n{2,}/).filter(Boolean).map((t) => `<p>${rich(t)}</p>`).join("");
   const substitute = (sql, params) => Object.entries(params || {}).reduce((out, [k, v]) => out.replace(new RegExp("(?<![:\\w]):" + k + "\\b", "g"), v), sql);
 
+  /** Same text format as sql_engine.resultToText (used for documented output in the cheat sheet). */
+  function resultText(res) {
+    if (!res.ok) return "ERROR: " + res.error;
+    if (!res.hasResultSet) return res.statements > 1 ? `OK (${res.statements} statements)` : `OK (${res.affected} rows affected)`;
+    return [res.columns.join(" | "), ...res.rows.map((r) => r.map((c) => (c === null ? "NULL" : c)).join(" | "))].join("\n");
+  }
+
   function resultHtml(res) {
     if (!res.ok) return `<div class="sql-err" role="alert"><b>${res.timeout ? "Timed out" : "Error"}</b> ${esc(res.error)}</div>`;
     const meta = `<div class="sql-meta">${res.hasResultSet ? `${res.rowCount} row${res.rowCount === 1 ? "" : "s"}` : ""}${res.truncated ? ` (showing the first ${res.rows.length})` : ""} · ${Math.round(res.ms)} ms</div>`;
@@ -235,5 +242,5 @@ window.SqlTab = function (deps) {
     return pageOverview(el);
   }
 
-  return { render, renderSide, resultHtml, execute, ensureSetup, BY_SLUG, IDX };
+  return { render, renderSide, resultHtml, resultText, execute, ensureSetup, BY_SLUG, IDX };
 };

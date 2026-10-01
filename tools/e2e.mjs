@@ -206,7 +206,7 @@ await check("cheat sheet: lists every entry and follows the language switch", as
   await page.goto(base + "#cheatsheet");
   await setLang("py");
   await page.waitForSelector(".cs-entry");
-  eq(await page.locator(".cs-entry").count(), 111, "entries");
+  eq(await page.locator(".cs-entry").count(), 170, "entries");
   if (!(await page.textContent('.cs-entry[data-key="variables-and-types"] pre.code')).includes("type(name).__name__")) throw new Error("python code missing");
   await setLang("js");
   if (!(await page.textContent('.cs-entry[data-key="variables-and-types"] pre.code')).includes("typeof")) throw new Error("javascript code missing");
@@ -223,7 +223,7 @@ await check("cheat sheet: search and section filter", async () => {
   await page.waitForFunction(() => document.querySelectorAll(".cs-entry").length === 8);
   eq(await page.locator(".cs-section").count(), 1, "one section heading");
   await page.click('#csChips [data-sec="all"]');
-  await page.waitForFunction(() => document.querySelectorAll(".cs-entry").length === 111);
+  await page.waitForFunction(() => document.querySelectorAll(".cs-entry").length === 170);
 });
 
 await check("cheat sheet: run a Python example", async () => {
@@ -418,6 +418,22 @@ await check("no horizontal overflow on any view from 320px to 412px", async () =
   }
   if (bad.length) throw new Error(bad.join(", "));
   await page.setViewportSize({ width: 1280, height: 900 });
+});
+
+await check("cheat sheet: SQL entry runs on Postgres, matches its documented output, shows for every language", async () => {
+  await setLang("js");
+  await page.goto(base + "#cheatsheet/group-by");
+  const card = '.cs-entry[data-key="group-by"]';
+  await page.waitForSelector(card);
+  eq(await page.getAttribute(card, "data-lang"), "sql", "language of the block");
+  await page.click(card + ' [data-act="run"]');
+  await page.waitForSelector(card + " .summary.ok", { timeout: 120000 });
+  await page.waitForSelector(card + " .sql-table");
+  await page.click(card + ' [data-act="play"]');
+  await page.waitForSelector("#tryHost textarea");
+  if (!/GROUP BY status/.test(await page.inputValue("#tryHost textarea"))) throw new Error("example not loaded into the SQL try-it box");
+  await page.goto(base + "#cheatsheet");
+  await setLang("py");
 });
 
 await check("SQL: lists 50 patterns and opens one with 10 questions", async () => {

@@ -541,6 +541,7 @@
 
   /** The code block to show for the current language; TypeScript falls back to the JavaScript block. */
   function csBlock(entry, lang) {
+    if (entry.code.sql) return { block: entry.code.sql, lang: "sql", fallback: false };   // SQL entries are shown for every language
     if (entry.code[lang]) return { block: entry.code[lang], lang, fallback: false };
     return { block: entry.code.js, lang: "ts", fallback: true };   // JavaScript is valid TypeScript
   }
@@ -585,10 +586,10 @@
   function csCard(entry, lang) {
     const { block, lang: codeLang, fallback } = csBlock(entry, lang);
     const key = slug(entry.title);
-    const hl = highlight(block.code, codeLang === "py" ? "py" : "js");
+    const hl = highlight(block.code, codeLang === "py" ? "py" : codeLang === "sql" ? "sql" : "js");
     return `<article class="card cs-entry" data-key="${key}" data-lang="${codeLang}" id="cs-${key}">
       <div class="card-head"><h3>${esc(entry.title)}</h3>
-        <span class="status">${fallback ? '<span class="badge" title="No TypeScript-specific version: the JavaScript code is valid TypeScript">same as JavaScript</span> ' : ""}${block.run ? "" : '<span class="badge" title="Needs Node.js, a network, or a real browser, so it cannot run on this page">view only</span>'}</span></div>
+        <span class="status">${codeLang === "sql" ? '<span class="badge" title="Runs on PostgreSQL in your browser">PostgreSQL</span> ' : ""}${fallback ? '<span class="badge" title="No TypeScript-specific version: the JavaScript code is valid TypeScript">same as JavaScript</span> ' : ""}${block.run ? "" : '<span class="badge" title="${codeLang === "sql" ? "Needs a statement the sandbox cannot run (or output that depends on the data size)" : "Needs Node.js, a network, or a real browser"}, so it cannot run on this page">view only</span>'}</span></div>
       <div class="card-body">
         ${entry.desc ? `<p style="margin-top:0">${esc(entry.desc)}</p>` : ""}
         <pre class="code">${hl}</pre>
@@ -597,7 +598,7 @@
         <div class="toolbar" style="margin-top:10px">
           ${block.run ? `<button class="btn primary" data-act="run">▶ Run</button>` : ""}
           <button class="btn" data-act="copy">Copy</button>
-          ${block.run ? `<button class="btn" data-act="play">Open in Playground</button>` : ""}
+          ${block.run ? `<button class="btn" data-act="play">${codeLang === "sql" ? "Try it in the SQL tab" : "Open in Playground"}</button>` : ""}
         </div>
         <div class="cs-result" hidden></div>
       </div>
@@ -619,6 +620,7 @@
       try { await navigator.clipboard.writeText(block.code); btn.textContent = "Copied"; } catch (e) { btn.textContent = "Copy failed"; }
       setTimeout(() => { btn.textContent = "Copy"; }, 1500);
     } else if (btn.dataset.act === "play") {
+      if (lang === "sql") { store.set("qa.sql.try", block.code); location.hash = "sql/schema"; return; }
       store.set(`qa.play.${state.lang}`, block.code);
       location.hash = "playground";
     } else if (btn.dataset.act === "run") {
@@ -627,6 +629,16 @@
       box.hidden = false;
       box.innerHTML = '<pre class="console"><span class="meta">Running…</span></pre>';
       Runner.setStatusHandler((t) => { box.innerHTML = `<pre class="console"><span class="meta">${esc(t)}</span></pre>`; });
+      if (lang === "sql") {
+        try { await sqlTab.ensureSetup(); } catch (e) { /* reported by the run below */ }
+        const sres = await Runner.sql(block.code, 20000);
+        btn.disabled = false;
+        const ok = sres.ok && sqlTab.resultText(sres) === block.out.join("\n");
+        const verdict = !sres.ok ? '<div class="summary bad">✗ Error</div>' : block.out.length
+          ? (ok ? '<div class="summary ok">✓ Output matches</div>' : '<div class="summary bad">✗ Output differs from the documented output</div>') : "";
+        box.innerHTML = verdict + sqlTab.resultHtml(sres);
+        return;
+      }
       const res = await Runner.run({ lang, mode: "free", code: block.code }, 15000);
       btn.disabled = false;
       const actual = (res.logs || "").replace(/\n+$/, "");

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -121,3 +122,7 @@ def load_schema() -> dict:
 if __name__ == "__main__":
     pats = load_patterns()
     print(len(pats), "patterns,", sum(len(p["questions"]) for p in pats), "questions")
+    if "--json" in sys.argv:        # for tools/check_sql.mjs
+        dest = ROOT / "build" / "sql_patterns.json"
+        dest.parent.mkdir(exist_ok=True)
+        dest.write_text(json.dumps(pats))
