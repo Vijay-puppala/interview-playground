@@ -7,7 +7,7 @@ solution and an explanation you reveal only when you ask for it.
 | | |
 |---|---|
 | Slack-style layout | Icon rail, a sidebar that follows the section you are in (problems, cheat-sheet sections, playground starters), and a top bar with search. On phones the rail becomes a bottom bar and the sidebar a drawer |
-| Colour themes | Six Slack-inspired themes (Aubergine, Ochin, Monument, Hoth, Choco Mint, Sweet Treat), each in light and dark. Light / dark always follows your system setting; pick the colour theme from the palette button; all combinations are tested for WCAG AA contrast |
+| Colour themes | Seven themes: **Portfolio** (default, matches the author's portfolio: navy, Inter, teal / purple / amber accents) plus six Slack-inspired ones (Aubergine, Ochin, Monument, Hoth, Choco Mint, Sweet Treat), each in light and dark. Light / dark always follows your system setting; pick the colour theme from the palette button; all combinations are tested for WCAG AA contrast |
 | Quick search | **Ctrl+K** (or `/`) jumps to any problem, cheat-sheet entry or page, and runs commands such as *Use TypeScript* |
 | Dashboard | A home page with your progress overall and by topic, a *Continue* button and your recently solved problems |
 | Language switch | Python · JavaScript · TypeScript (header, top right) |
