@@ -13,7 +13,17 @@ window.SITE = {
       "Defines test strategies, plans releases, manages certifications and owns quality across the SDLC.",
       "Hands-on functional, regression, E2E, API, performance, scalability, exploratory and data-validation testing.",
     ],
-    skills: ["AWS", "Azure", "Docker", "Kubernetes", "Oracle", "PostgreSQL", "Snowflake", "HP ALM", "Jira", "Confluence", "Jenkins"],
+    location: "Hyderabad, India",
+    email: "Vijayanand.hyd@gmail.com",
+    skills: {
+      "Cloud": ["AWS", "Azure"],
+      "Containers": ["Docker", "Kubernetes"],
+      "Testing": ["Functional", "Regression", "Scalability", "Data migration", "API testing", "Automation", "Volume", "Synthetic data generation"],
+      "Databases": ["Oracle", "SQL Server", "PostgreSQL", "Snowflake"],
+      "Tools": ["Selenium WebDriver", "TestNG", "Jenkins", "Postman"],
+      "Programming": ["C#", "Java", "Python"],
+      "Tracking": ["HP ALM", "BugDB", "Jira", "Confluence"],
+    },
     github: "https://github.com/Vijay-puppala",
     linkedin: "https://www.linkedin.com/in/vijayanand-puppala/",
     websites: [
