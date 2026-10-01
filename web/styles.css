@@ -196,7 +196,9 @@ table.examples td { padding: 6px 8px; border-top: 1px solid var(--border); verti
 .editor { display: grid; grid-template-columns: auto 1fr; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--code-bg); overflow: hidden; }
 .editor:focus-within { border-color: var(--link); box-shadow: 0 0 0 1px var(--link), 0 0 0 4px var(--focus); }
 .gutter { margin: 0; padding: 12px 8px 12px 12px; text-align: right; color: var(--muted); font: 13px/1.6 var(--font-mono); user-select: none; overflow: hidden; background: var(--bg-subtle); border-right: 1px solid var(--border); }
-.editor textarea { width: 100%; min-height: 180px; max-height: 60vh; resize: vertical; border: 0; outline: 0; box-shadow: none; padding: 12px; background: transparent; color: var(--text); font: 13px/1.6 var(--font-mono); tab-size: 4; white-space: pre; overflow: auto; }
+.ed-wrap { position: relative; min-width: 0; }
+.ed-hl { position: absolute; inset: 0; margin: 0; padding: 12px; overflow: hidden; pointer-events: none; font: 13px/1.6 var(--font-mono); tab-size: 4; white-space: pre; color: var(--text); }
+.editor textarea { position: relative; display: block; width: 100%; min-height: 180px; max-height: 60vh; resize: vertical; border: 0; outline: 0; box-shadow: none; padding: 12px; background: transparent; color: transparent; caret-color: var(--text); font: 13px/1.6 var(--font-mono); tab-size: 4; white-space: pre; overflow: auto; }
 .editor.tall textarea { min-height: 340px; }
 
 pre.code { margin: 0; padding: 14px; overflow: auto; background: var(--code-bg); border: 1px solid var(--border); border-radius: var(--radius); font: 13px/1.6 var(--font-mono); }
@@ -242,6 +244,7 @@ details.stdin textarea { width: 100%; min-height: 60px; font: 13px var(--font-mo
 .h2row { display: flex; align-items: baseline; justify-content: space-between; margin: 28px 0 8px; }
 .h2row h2 { margin: 0; font-size: 18px; }
 .cat-row { display: grid; grid-template-columns: 190px 1fr 64px; align-items: center; gap: 12px; width: 100%; padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: none; text-align: left; }
+.cat-row { color: inherit; text-decoration: none; }
 .cat-row:hover { background: var(--bg-hover); }
 .cat-row .bar { height: 8px; border-radius: 8px; background: var(--bg-subtle); border: 1px solid var(--border); overflow: hidden; }
 .cat-row .bar i { display: block; height: 100%; background: var(--btn-bg); }

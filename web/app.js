@@ -194,16 +194,20 @@
   /* --------------------------------------------------------------- editor */
   function createEditor(host, { value, lang, tall, onChange, onRun }) {
     host.innerHTML = `<div class="editor ${tall ? "tall" : ""}"><pre class="gutter" aria-hidden="true">1</pre>
-      <textarea spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Code editor"></textarea></div>`;
+      <div class="ed-wrap"><pre class="ed-hl" aria-hidden="true"></pre>
+      <textarea spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Code editor"></textarea></div></div>`;
     const ta = $("textarea", host);
     const gutter = $(".gutter", host);
+    const layer = $(".ed-hl", host);
+    const hlLang = lang === "py" ? "py" : lang === "sql" ? "sql" : "js";
     const indent = lang === "py" ? "    " : "  ";
     ta.value = value;
     const refresh = () => {
       const n = ta.value.split("\n").length;
       gutter.textContent = Array.from({ length: n }, (_, i) => i + 1).join("\n");
+      layer.innerHTML = highlight(ta.value, hlLang) + "\n";   // trailing newline keeps the last empty line in step
     };
-    ta.addEventListener("scroll", () => { gutter.scrollTop = ta.scrollTop; });
+    ta.addEventListener("scroll", () => { gutter.scrollTop = ta.scrollTop; layer.scrollTop = ta.scrollTop; layer.scrollLeft = ta.scrollLeft; });
     ta.addEventListener("input", () => { refresh(); onChange && onChange(ta.value); });
     ta.addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); onRun && onRun(); return; }
@@ -237,6 +241,7 @@
     book: '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M6 3h12a1 1 0 011 1v17l-7-4-7 4V4a1 1 0 011-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
     term: '<svg viewBox="0 0 24 24" width="22" height="22"><rect x="3" y="4" width="18" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 10l3 2.5L7 15M12.5 15H17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     table: '<svg viewBox="0 0 24 24" width="22" height="22"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 10h18M9 10v10" stroke="currentColor" stroke-width="1.8"/></svg>',
+    db: '<svg viewBox="0 0 24 24" width="22" height="22"><ellipse cx="12" cy="6" rx="7.5" ry="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4.5 6v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6M4.5 12v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
     flask: '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 001.3 2.2h12.4a1.5 1.5 0 001.3-2.2L14 9V3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
   };
 
@@ -251,6 +256,8 @@
     const last = BY_ID[store.get("qa.last", null)];
     const csEntries = (window.CHEATSHEET || []).reduce((n, s) => n + s.entries.length, 0);
     const recent = store.get("qa.recent", []).filter((id) => BY_ID[id]).slice(0, 5);
+    const sqlTotal = window.SQL_INDEX.patterns.reduce((n, p) => n + p.questions.length, 0);
+    const sqlDone = store.get("qa.sql.done", []).length;
     const rows = CATS.map((c) => {
       const all = PROBLEMS.filter((p) => p.category === c.id);
       return { c, n: all.length, s: all.filter((p) => state.solved.has(p.id)).length };
@@ -263,6 +270,7 @@
         <div class="toolbar">
           ${last ? `<a class="btn primary" href="#${last.id}">Continue: ${esc(last.title)}</a>` : `<a class="btn primary" href="#p001">Start with problem 1</a>`}
           <a class="btn" href="#cheatsheet">Cheat sheet</a>
+          <a class="btn" href="#sql">SQL practice</a>
           <a class="btn" href="#playground">Playground</a>
         </div>
       </section>
@@ -270,17 +278,20 @@
       <div class="stats">
         <div class="stat"><b>${solvedN}<small class="muted" style="font-size:16px;font-weight:700"> / ${total}</small></b><span>Problems solved</span></div>
         <div class="stat"><b>${Math.round((100 * solvedN) / total)}%</b><span>Complete</span></div>
+        <div class="stat"><b>${sqlDone}<small class="muted" style="font-size:16px;font-weight:700"> / ${sqlTotal}</small></b><span>SQL questions done</span></div>
         <div class="stat"><b>${csEntries}</b><span>Cheat-sheet entries</span></div>
-        <div class="stat"><b>3</b><span>Languages: Python, JavaScript, TypeScript</span></div>
       </div>
 
       <div class="h2row"><h2>Progress by topic</h2><span class="muted">Click a topic to continue it</span></div>
       <div>${rows.map(({ c, n, s }) => `<button class="cat-row" data-cat="${c.id}"><span><b>${esc(c.label)}</b></span>
-        <span class="bar"><i style="width:${(100 * s) / n}%"></i></span><span class="n">${s} / ${n}</span></button>`).join("")}</div>
+        <span class="bar"><i style="width:${(100 * s) / n}%"></i></span><span class="n">${s} / ${n}</span></button>`).join("")}
+        <a class="cat-row" href="#sql" data-sql="1"><span><b>SQL practice</b></span>
+        <span class="bar"><i style="width:${(100 * sqlDone) / sqlTotal}%"></i></span><span class="n">${sqlDone} / ${sqlTotal}</span></a></div>
 
       <div class="h2row"><h2>Jump in</h2></div>
       <div class="quick">
         <a class="qcard" href="#cheatsheet"><span class="ic">${ICONS.book}</span><div><b>Cheat sheet</b><span>${csEntries} concepts and methods with runnable examples</span></div></a>
+        <a class="qcard" href="#sql"><span class="ic">${ICONS.db}</span><div><b>SQL practice</b><span>${window.SQL_INDEX.patterns.length} patterns, ${sqlTotal} questions on a real Postgres in your browser</span></div></a>
         <a class="qcard" href="#playground"><span class="ic">${ICONS.term}</span><div><b>Playground</b><span>Run any Python, JavaScript or TypeScript program</span></div></a>
         <a class="qcard" href="#${firstOf("data").id}"><span class="ic">${ICONS.table}</span><div><b>pandas &amp; PySpark</b><span>Data-validation problems for SDETs</span></div></a>
         <a class="qcard" href="#${firstOf("pytest").id}"><span class="ic">${ICONS.flask}</span><div><b>pytest scenarios</b><span>Fixtures, parametrize, mocking, page objects</span></div></a>
@@ -291,7 +302,7 @@
         return `<a href="#${p.id}"><span class="num">${pad3(p.num)}</span><span>${esc(p.title)}</span><span class="ok">✓</span></a>`;
       }).join("")}</div>` : ""}`;
 
-    $$(".cat-row", view.home).forEach((b) => b.addEventListener("click", () => {
+    $$(".cat-row[data-cat]", view.home).forEach((b) => b.addEventListener("click", () => {
       state.category = b.dataset.cat;
       renderChips();
       location.hash = firstOf(b.dataset.cat).id;
