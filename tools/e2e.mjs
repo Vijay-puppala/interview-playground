@@ -569,7 +569,7 @@ await check("author section: brand logos and icons, no Source link", async () =>
   eq(await page.locator("#viewHome .author .pillar").count(), 9, "competency cards");
   eq(await page.locator("#viewHome .author .exp-card").count(), 0, "no detailed experience section");
   eq(await page.locator("#viewHome .author .job").count(), 3, "career entries");
-  if (!/Hitachi Vantara India Pvt. Ltd\./.test(await page.textContent("#viewHome .author .career")) || !/Jan 2022 – Present/.test(await page.textContent("#viewHome .author .career"))) throw new Error("career content missing");
+  if (!/Hitachi Vantara India Pvt\. Ltd \(Pentaho\)/.test(await page.textContent("#viewHome .author .career")) || !/Jan 2022 – Present/.test(await page.textContent("#viewHome .author .career"))) throw new Error("career content missing");
   if (/Professional experience|Testing skills/i.test(await page.textContent("#viewHome .author"))) throw new Error("removed sections still shown");
   if (!/Titan Awards/.test(await page.textContent("#viewHome .author"))) throw new Error("awards missing");
   eq((await page.locator("#viewHome .author .tool svg path").count()) >= 18, true, "tool logos");
