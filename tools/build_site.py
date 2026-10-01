@@ -40,6 +40,7 @@ LANG_NOTE = {
     "data": "pandas and PySpark are Python libraries, so this problem is Python-only.",
     "pytest": "pytest is a Python framework, so this scenario is Python-only.",
 }
+CATEGORY_ORDER = ["strings", "arrays", "numbers", "algorithms", "sdet", "data"]
 SCENARIO_FILES = sorted((ROOT / "pytest_scenarios").glob("test_*.py"))
 
 
@@ -128,7 +129,7 @@ def collect_deps(start_names, defs_code, helpers_code):
     while queue:
         cur = queue.pop()
         code = defs_code.get(cur) or helpers_code.get(cur, "")
-        for ref in set(PROG.findall(code)) | {h for h in helpers_code if re.search(rf"\b{h}\b", code)}:
+        for ref in sorted(set(PROG.findall(code)) | {h for h in helpers_code if re.search(rf"\b{h}\b", code)}):
             if ref != cur and ref not in selected and (ref in defs_code or ref in helpers_code):
                 selected.append(ref)
                 queue.append(ref)
@@ -245,9 +246,10 @@ def write_index(problems):
 def main():
     cases = export_cases()
     programs = discover()
-    py_mods = {c: PyModule(ROOT / "playground" / f"{c}.py") for c in {p.category for p in programs}}
+    used = {p.category for p in programs}
+    py_mods = {c: PyModule(ROOT / "playground" / f"{c}.py") for c in CATEGORY_ORDER if c in used}   # fixed order: sets are not deterministic
     ts_blocks, ts_order = {}, {}
-    for f in (ROOT / "content" / "ts").glob("*.ts"):
+    for f in sorted((ROOT / "content" / "ts").glob("*.ts")):
         ts_blocks[f.stem], ts_order[f.stem] = load_ts_blocks(f)
     ts_by_num = {}
     for cat, blocks in ts_blocks.items():
