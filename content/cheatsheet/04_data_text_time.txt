@@ -1,0 +1,247 @@
+@@ JSON, CSV and files
+
+@@@ Parse and write JSON
+API responses and test data are mostly JSON.
+@py
+import json
+data = json.loads('{"id": 1, "tags": ["a", "b"]}')
+print(data["tags"][1])
+print(json.dumps({"ok": True, "n": None}, separators=(",", ":")))
+=> b
+=> {"ok":true,"n":null}
+@js
+const data = JSON.parse('{"id": 1, "tags": ["a", "b"]}');
+console.log(data.tags[1]);
+console.log(JSON.stringify({ ok: true, n: null }));
+=> b
+=> {"ok":true,"n":null}
+
+@@@ Pretty-print JSON
+@py
+import json
+print(json.dumps({"b": 1, "a": 2}, indent=2, sort_keys=True))
+=> {
+=>   "a": 2,
+=>   "b": 1
+=> }
+@js
+const obj = { b: 1, a: 2 };
+console.log(JSON.stringify(obj, Object.keys(obj).sort(), 2));
+=> {
+=>   "a": 2,
+=>   "b": 1
+=> }
+
+@@@ Read CSV text
+@py
+import csv, io
+text = "name,qty\nbolt,2\nnut,5"
+rows = list(csv.DictReader(io.StringIO(text)))
+print(rows[1]["name"], sum(int(r["qty"]) for r in rows))
+=> nut 7
+@js
+const text = "name,qty\nbolt,2\nnut,5";
+const [header, ...lines] = text.split("\n").map((l) => l.split(","));
+const rows = lines.map((cells) => Object.fromEntries(header.map((h, i) => [h, cells[i]])));
+console.log(rows[1].name, rows.reduce((sum, r) => sum + Number(r.qty), 0));
+=> nut 7
+! Splitting on commas breaks for quoted fields. Use the csv module (Python) or a library such as papaparse (JavaScript) for real files.
+
+@@@ Read and write files
+Files exist on disk in Python and in Node.js. In a browser there is no file system.
+@py
+with open("/tmp/notes.txt", "w") as f:
+    f.write("one\ntwo\n")
+with open("/tmp/notes.txt") as f:
+    lines = f.read().splitlines()
+print(lines, len(lines))
+=> ['one', 'two'] 2
+@js!
+import { readFileSync, writeFileSync } from "node:fs";
+
+writeFileSync("notes.txt", "one\ntwo\n");
+const lines = readFileSync("notes.txt", "utf8").trim().split("\n");
+console.log(lines, lines.length);   // [ 'one', 'two' ] 2
+
+@@@ Paths and environment variables
+@py
+import os
+os.environ["BASE_URL"] = "http://localhost:3000"
+print(os.getenv("BASE_URL"), os.getenv("MISSING", "default"))
+print(os.path.join("reports", "out.html"), os.path.splitext("a/b/report.html")[1])
+=> http://localhost:3000 default
+=> reports/out.html .html
+@js!
+import path from "node:path";
+
+process.env.BASE_URL = "http://localhost:3000";
+console.log(process.env.BASE_URL, process.env.MISSING ?? "default");
+console.log(path.join("reports", "out.html"), path.extname("a/b/report.html"));
+
+@@@ Read command-line arguments
+@py!
+import sys
+
+print(sys.argv[1:])        # python script.py a b  ->  ['a', 'b']
+@js!
+console.log(process.argv.slice(2));   // node script.js a b  ->  [ 'a', 'b' ]
+
+@@ Regular expressions
+
+@@@ Search and capture groups
+@py
+import re
+m = re.search(r"(\d{4})-(\d{2})-(\d{2})", "released 2024-05-17!")
+print(m.group(0), m.groups())
+=> 2024-05-17 ('2024', '05', '17')
+@js
+const m = "released 2024-05-17!".match(/(\d{4})-(\d{2})-(\d{2})/);
+console.log(m[0], JSON.stringify(m.slice(1)));
+=> 2024-05-17 ["2024","05","17"]
+
+@@@ Find all and replace
+@py
+import re
+print(re.findall(r"\d+", "a1b22c333"))
+print(re.sub(r"\s+", " ", "a   b \n c"))
+=> ['1', '22', '333']
+=> a b c
+@js
+console.log(JSON.stringify("a1b22c333".match(/\d+/g)));
+console.log("a   b \n c".replace(/\s+/g, " "));
+=> ["1","22","333"]
+=> a b c
+
+@@@ Named groups
+@py
+import re
+m = re.search(r"(?P<level>[A-Z]+): (?P<msg>.*)", "ERROR: disk full")
+print(m.group("level"), "|", m.group("msg"))
+=> ERROR | disk full
+@js
+const m = "ERROR: disk full".match(/(?<level>[A-Z]+): (?<msg>.*)/);
+console.log(m.groups.level, "|", m.groups.msg);
+=> ERROR | disk full
+
+@@@ Validate with a pattern
+@py
+import re
+pattern = re.compile(r"^[\w.+-]+@[\w-]+(\.[\w-]+)+$")
+print(bool(pattern.match("qa.team@example.com")), bool(pattern.match("not-an-email")))
+=> True False
+@js
+const pattern = /^[\w.+-]+@[\w-]+(\.[\w-]+)+$/;
+console.log(pattern.test("qa.team@example.com"), pattern.test("not-an-email"));
+=> true false
+
+@@@ Flags and loops over matches
+@py
+import re
+text = "Error at 10:02, error at 11:45"
+for m in re.finditer(r"error at (\d+:\d+)", text, re.IGNORECASE):
+    print(m.group(1))
+=> 10:02
+=> 11:45
+@js
+const text = "Error at 10:02, error at 11:45";
+for (const m of text.matchAll(/error at (\d+:\d+)/gi)) console.log(m[1]);
+=> 10:02
+=> 11:45
+! JavaScript needs the g flag for matchAll() and for replacing every match.
+
+@@@ Common patterns (quick reference)
+@py
+import re
+tests = {
+    "digits": r"\d+",
+    "word": r"\w+",
+    "any char (lazy)": r".*?",
+    "start/end": r"^...$",
+    "optional": r"colou?r",
+    "choice": r"cat|dog",
+}
+for name, rx in tests.items():
+    print(f"{name:16} {rx}")
+=> digits           \d+
+=> word             \w+
+=> any char (lazy)  .*?
+=> start/end        ^...$
+=> optional         colou?r
+=> choice           cat|dog
+@js
+const tests = {
+  digits: String.raw`\d+`,
+  word: String.raw`\w+`,
+  "any char (lazy)": ".*?",
+  "start/end": "^...$",
+  optional: "colou?r",
+  choice: "cat|dog",
+};
+for (const [name, rx] of Object.entries(tests)) console.log(name.padEnd(16), rx);
+=> digits           \d+
+=> word             \w+
+=> any char (lazy)  .*?
+=> start/end        ^...$
+=> optional         colou?r
+=> choice           cat|dog
+
+@@ Dates and time
+
+@@@ Parse, format and add days
+@py
+from datetime import datetime, timedelta
+d = datetime.strptime("2024-05-17", "%Y-%m-%d")
+print(d.strftime("%d %b %Y"), (d + timedelta(days=30)).date())
+=> 17 May 2024 2024-06-16
+@js
+const d = new Date("2024-05-17T00:00:00Z");
+const label = d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+d.setUTCDate(d.getUTCDate() + 30);
+console.log(label, d.toISOString().slice(0, 10));
+=> 17 May 2024 2024-06-16
+
+@@@ Difference between dates
+@py
+from datetime import date
+print((date(2024, 3, 1) - date(2024, 1, 1)).days)
+=> 60
+@js
+console.log((Date.UTC(2024, 2, 1) - Date.UTC(2024, 0, 1)) / 86_400_000);
+=> 60
+! JavaScript months are 0-based: January is 0, March is 2.
+
+@@@ Weekday and weekend check
+@py
+from datetime import date
+d = date(2024, 5, 18)
+print(d.strftime("%A"), d.weekday() >= 5)
+=> Saturday True
+@js
+const d = new Date(Date.UTC(2024, 4, 18));
+console.log(d.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" }), [0, 6].includes(d.getUTCDay()));
+=> Saturday true
+
+@@@ Measure elapsed time
+@py
+import time
+start = time.perf_counter()
+sum(range(10_000))
+print(time.perf_counter() - start >= 0)
+=> True
+@js
+const start = performance.now();
+let s = 0;
+for (let i = 0; i < 10000; i++) s += i;
+console.log(performance.now() - start >= 0);
+=> true
+
+@@@ ISO timestamps
+@py
+from datetime import datetime, timezone
+ts = datetime(2024, 5, 17, 9, 30, tzinfo=timezone.utc)
+print(ts.isoformat(), datetime.fromisoformat("2024-05-17T09:30:00+00:00") == ts)
+=> 2024-05-17T09:30:00+00:00 True
+@js
+const ts = new Date(Date.UTC(2024, 4, 17, 9, 30));
+console.log(ts.toISOString(), new Date("2024-05-17T09:30:00Z").getTime() === ts.getTime());
+=> 2024-05-17T09:30:00.000Z true

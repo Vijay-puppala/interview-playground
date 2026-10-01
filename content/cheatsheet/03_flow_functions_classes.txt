@@ -1,0 +1,584 @@
+@@ Control flow and loops
+
+@@@ if / elif / else
+@py
+score = 82
+if score >= 90:
+    grade = "A"
+elif score >= 75:
+    grade = "B"
+else:
+    grade = "C"
+print(grade)
+=> B
+@js
+const score = 82;
+let grade;
+if (score >= 90) grade = "A";
+else if (score >= 75) grade = "B";
+else grade = "C";
+console.log(grade);
+=> B
+
+@@@ for loops and range
+@py
+print(*range(3))
+print(list(range(2, 10, 3)))
+for fruit in ["apple", "fig"]:
+    print(fruit.upper())
+=> 0 1 2
+=> [2, 5, 8]
+=> APPLE
+=> FIG
+@js
+console.log([...Array(3).keys()].join(" "));
+console.log(JSON.stringify(Array.from({ length: 3 }, (_, i) => 2 + i * 3)));
+for (const fruit of ["apple", "fig"]) console.log(fruit.toUpperCase());
+=> 0 1 2
+=> [2,5,8]
+=> APPLE
+=> FIG
+! In JavaScript use for...of to loop over values and for...in only for object keys (never for arrays).
+
+@@@ while, break and continue
+@py
+out = []
+n = 0
+while True:
+    n += 1
+    if n % 2 == 0:
+        continue          # skip even numbers
+    if n > 7:
+        break             # stop the loop
+    out.append(n)
+print(out)
+=> [1, 3, 5, 7]
+@js
+const out = [];
+let n = 0;
+while (true) {
+  n += 1;
+  if (n % 2 === 0) continue;   // skip even numbers
+  if (n > 7) break;            // stop the loop
+  out.push(n);
+}
+console.log(JSON.stringify(out));
+=> [1,3,5,7]
+
+@@@ match / switch
+Branch on a value. Python 3.10+ has structural pattern matching.
+@py
+def kind(code):
+    match code:
+        case 200 | 201:
+            return "ok"
+        case 404:
+            return "missing"
+        case _:
+            return "other"
+
+print(kind(201), kind(404), kind(500))
+=> ok missing other
+@js
+function kind(code) {
+  switch (code) {
+    case 200:
+    case 201:
+      return "ok";
+    case 404:
+      return "missing";
+    default:
+      return "other";
+  }
+}
+console.log(kind(201), kind(404), kind(500));
+=> ok missing other
+! JavaScript switch falls through to the next case unless you break or return.
+
+@@@ Loop with index and early exit
+@py
+for i, name in enumerate(["a", "b", "c"]):
+    if name == "b":
+        print("found at", i)
+        break
+else:
+    print("not found")     # runs only if the loop never hit break
+=> found at 1
+@js
+const names = ["a", "b", "c"];
+const i = names.findIndex((name) => name === "b");
+console.log(i >= 0 ? `found at ${i}` : "not found");
+=> found at 1
+
+@@ Functions
+
+@@@ Defaults and keyword arguments
+@py
+def greet(name, greeting="Hello", *, punct="!"):
+    return f"{greeting}, {name}{punct}"
+
+print(greet("Vijay"), greet("QA", punct="?"))
+=> Hello, Vijay! Hello, QA?
+@js
+function greet(name, greeting = "Hello", { punct = "!" } = {}) {
+  return `${greeting}, ${name}${punct}`;
+}
+console.log(greet("Vijay"), greet("QA", undefined, { punct: "?" }));
+=> Hello, Vijay! Hello, QA?
+@ts
+function greet(name: string, greeting: string = "Hello", { punct = "!" }: { punct?: string } = {}): string {
+  return `${greeting}, ${name}${punct}`;
+}
+console.log(greet("Vijay"), greet("QA", undefined, { punct: "?" }));
+=> Hello, Vijay! Hello, QA?
+
+@@@ Variable arguments
+Accept any number of arguments.
+@py
+def total(*nums, **opts):
+    return sum(nums) * opts.get("factor", 1)
+
+print(total(1, 2, 3), total(1, 2, factor=10))
+=> 6 30
+@js
+function total(factor, ...nums) {
+  return factor * nums.reduce((a, b) => a + b, 0);
+}
+console.log(total(1, 1, 2, 3), total(10, 1, 2));
+=> 6 30
+@ts
+function total(factor: number, ...nums: number[]): number {
+  return factor * nums.reduce((a, b) => a + b, 0);
+}
+console.log(total(1, 1, 2, 3), total(10, 1, 2));
+=> 6 30
+
+@@@ Lambdas and arrow functions
+Short anonymous functions, handy for map / sort keys.
+@py
+add = lambda a, b: a + b
+print(add(2, 3), list(map(lambda x: x * 2, [1, 2, 3])))
+=> 5 [2, 4, 6]
+@js
+const add = (a, b) => a + b;
+console.log(add(2, 3), JSON.stringify([1, 2, 3].map((x) => x * 2)));
+=> 5 [2,4,6]
+
+@@@ Closures
+A function that remembers variables from where it was created.
+@py
+def counter():
+    count = 0
+    def inc():
+        nonlocal count
+        count += 1
+        return count
+    return inc
+
+c = counter()
+print(c(), c(), c())
+=> 1 2 3
+@js
+function counter() {
+  let count = 0;
+  return () => ++count;
+}
+const c = counter();
+console.log(c(), c(), c());
+=> 1 2 3
+
+@@@ Decorators and wrapper functions
+Add behaviour (logging, timing, retries) around a function without changing it.
+@py
+def logged(fn):
+    def wrapper(*args, **kwargs):
+        result = fn(*args, **kwargs)
+        print(f"{fn.__name__} done")
+        return result
+    return wrapper
+
+@logged
+def work():
+    return 42
+
+print(work())
+=> work done
+=> 42
+@js
+const logged = (fn) => (...args) => {
+  const result = fn(...args);
+  console.log(`${fn.name} done`);
+  return result;
+};
+const work = logged(function work() { return 42; });
+console.log(work());
+=> work done
+=> 42
+
+@@@ Generators
+Produce values lazily, one at a time.
+@py
+def countdown(n):
+    while n > 0:
+        yield n
+        n -= 1
+
+print(list(countdown(3)))
+=> [3, 2, 1]
+@js
+function* countdown(n) {
+  while (n > 0) yield n--;
+}
+console.log(JSON.stringify([...countdown(3)]));
+=> [3,2,1]
+
+@@@ Return several values
+@py
+def stats(nums):
+    return min(nums), max(nums)
+
+lo, hi = stats([4, 9, 2])
+print(lo, hi)
+=> 2 9
+@js
+const stats = (nums) => [Math.min(...nums), Math.max(...nums)];
+const [lo, hi] = stats([4, 9, 2]);
+console.log(lo, hi);
+=> 2 9
+@ts
+const stats = (nums: number[]): [number, number] => [Math.min(...nums), Math.max(...nums)];
+const [lo, hi] = stats([4, 9, 2]);
+console.log(lo, hi);
+=> 2 9
+
+@@@ Recursion
+@py
+def fact(n):
+    return 1 if n <= 1 else n * fact(n - 1)
+
+print(fact(5))
+=> 120
+@js
+const fact = (n) => (n <= 1 ? 1 : n * fact(n - 1));
+console.log(fact(5));
+=> 120
+! Python stops at about 1000 nested calls (RecursionError). Prefer a loop for deep recursion.
+
+@@ Classes and OOP
+
+@@@ Class basics
+@py
+class Account:
+    def __init__(self, owner, balance=0):
+        self.owner = owner
+        self.balance = balance
+
+    def deposit(self, amount):
+        self.balance += amount
+        return self
+
+    def __repr__(self):
+        return f"Account({self.owner!r}, {self.balance})"
+
+print(Account("Vijay").deposit(50))
+=> Account('Vijay', 50)
+@js
+class Account {
+  constructor(owner, balance = 0) {
+    this.owner = owner;
+    this.balance = balance;
+  }
+  deposit(amount) {
+    this.balance += amount;
+    return this;
+  }
+  toString() {
+    return `Account(${this.owner}, ${this.balance})`;
+  }
+}
+console.log(String(new Account("Vijay").deposit(50)));
+=> Account(Vijay, 50)
+@ts
+class Account {
+  constructor(public owner: string, public balance: number = 0) {}
+  deposit(amount: number): this {
+    this.balance += amount;
+    return this;
+  }
+  toString(): string {
+    return `Account(${this.owner}, ${this.balance})`;
+  }
+}
+console.log(String(new Account("Vijay").deposit(50)));
+=> Account(Vijay, 50)
+
+@@@ Inheritance and super
+@py
+class Animal:
+    def speak(self):
+        return "..."
+
+class Dog(Animal):
+    def speak(self):
+        return "Woof " + super().speak()
+
+print(Dog().speak())
+=> Woof ...
+@js
+class Animal {
+  speak() { return "..."; }
+}
+class Dog extends Animal {
+  speak() { return "Woof " + super.speak(); }
+}
+console.log(new Dog().speak());
+=> Woof ...
+
+@@@ Data classes and records
+Classes that mostly hold data.
+@py
+from dataclasses import dataclass
+
+@dataclass
+class Point:
+    x: int
+    y: int = 0
+
+print(Point(1), Point(1, 2) == Point(1, 2))
+=> Point(x=1, y=0) True
+@js
+const p = { x: 1, y: 0 };
+const q = { ...p, y: 5 };     // copy with one change
+console.log(JSON.stringify(q), JSON.stringify(p));
+=> {"x":1,"y":5} {"x":1,"y":0}
+@ts
+interface Point {
+  readonly x: number;
+  y?: number;
+}
+const p: Point = { x: 1 };
+const q: Point = { ...p, y: 5 };
+console.log(JSON.stringify(q), JSON.stringify(p));
+=> {"x":1,"y":5} {"x":1}
+
+@@@ Properties and static methods
+@py
+class Temp:
+    def __init__(self, c):
+        self.c = c
+
+    @property
+    def f(self):
+        return self.c * 9 / 5 + 32
+
+    @staticmethod
+    def zero():
+        return Temp(0)
+
+print(Temp(100).f, Temp.zero().f)
+=> 212.0 32.0
+@js
+class Temp {
+  constructor(c) { this.c = c; }
+  get f() { return (this.c * 9) / 5 + 32; }
+  static zero() { return new Temp(0); }
+}
+console.log(new Temp(100).f, Temp.zero().f);
+=> 212 32
+
+@@@ Abstract classes and interfaces
+Force subclasses to implement a method.
+@py
+from abc import ABC, abstractmethod
+
+class Shape(ABC):
+    @abstractmethod
+    def area(self): ...
+
+class Square(Shape):
+    def __init__(self, s):
+        self.s = s
+    def area(self):
+        return self.s ** 2
+
+print(Square(3).area())
+try:
+    Shape()
+except TypeError:
+    print("abstract")
+=> 9
+=> abstract
+@js
+class Shape {
+  constructor() {
+    if (new.target === Shape) throw new TypeError("abstract");
+  }
+}
+class Square extends Shape {
+  constructor(s) { super(); this.s = s; }
+  area() { return this.s ** 2; }
+}
+console.log(new Square(3).area());
+try {
+  new Shape();
+} catch (e) {
+  console.log("abstract");
+}
+=> 9
+=> abstract
+@ts
+abstract class Shape {
+  abstract area(): number;
+}
+class Square extends Shape {
+  constructor(private s: number) { super(); }
+  area(): number { return this.s ** 2; }
+}
+console.log(new Square(3).area());
+=> 9
+
+@@@ Magic methods and equality
+@py
+class Money:
+    def __init__(self, cents):
+        self.cents = cents
+    def __eq__(self, other):
+        return self.cents == other.cents
+    def __add__(self, other):
+        return Money(self.cents + other.cents)
+
+print(Money(150) + Money(50) == Money(200))
+=> True
+@js
+class Money {
+  constructor(cents) { this.cents = cents; }
+  equals(other) { return this.cents === other.cents; }
+  plus(other) { return new Money(this.cents + other.cents); }
+}
+console.log(new Money(150).plus(new Money(50)).equals(new Money(200)));
+=> true
+! JavaScript has no operator overloading: use methods such as equals() and plus().
+
+@@ Errors and exceptions
+
+@@@ try / except / finally
+@py
+def parse(s):
+    try:
+        return int(s)
+    except ValueError:
+        return f"bad: {s}"
+    finally:
+        print("checked", s)
+
+print(parse("7"), parse("x"))
+=> checked 7
+=> checked x
+=> 7 bad: x
+@js
+function parse(s) {
+  try {
+    return JSON.parse(s);
+  } catch (e) {
+    return `bad: ${s}`;
+  } finally {
+    console.log("checked", s);
+  }
+}
+console.log(parse("7"), parse("x"));
+=> checked 7
+=> checked x
+=> 7 bad: x
+
+@@@ Raise and custom errors
+@py
+class ValidationError(Exception):
+    pass
+
+def check_age(age):
+    if age < 0:
+        raise ValidationError(f"invalid age: {age}")
+    return age
+
+try:
+    check_age(-1)
+except ValidationError as e:
+    print(type(e).__name__, e)
+=> ValidationError invalid age: -1
+@js
+class ValidationError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "ValidationError";
+  }
+}
+function checkAge(age) {
+  if (age < 0) throw new ValidationError(`invalid age: ${age}`);
+  return age;
+}
+try {
+  checkAge(-1);
+} catch (e) {
+  console.log(e.name, e.message);
+}
+=> ValidationError invalid age: -1
+
+@@@ Assertions
+The building block of every automated test.
+@py
+try:
+    assert 2 + 2 == 5, "math is broken"
+except AssertionError as e:
+    print("failed:", e)
+=> failed: math is broken
+@js
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+try {
+  assert(2 + 2 === 5, "math is broken");
+} catch (e) {
+  console.log("failed:", e.message);
+}
+=> failed: math is broken
+
+@@@ Clean up resources (with / finally)
+@py
+with open("/tmp/demo.txt", "w") as f:
+    f.write("hello\nworld\n")
+with open("/tmp/demo.txt") as f:      # the file is closed automatically
+    print(f.read().splitlines())
+=> ['hello', 'world']
+@js
+const resource = { open: () => console.log("open"), close: () => console.log("close") };
+resource.open();
+try {
+  console.log("work");
+} finally {
+  resource.close();    // always runs, even after an error
+}
+=> open
+=> work
+=> close
+
+@@@ Check the type of an error
+@py
+for value in ["12", None, "x"]:
+    try:
+        print(int(value))
+    except (TypeError, ValueError) as e:
+        print(type(e).__name__)
+=> 12
+=> TypeError
+=> ValueError
+@js
+for (const value of ['{"a":1}', "{bad", null]) {
+  try {
+    console.log(JSON.stringify(JSON.parse(value)));
+  } catch (e) {
+    console.log(e.name);
+  }
+}
+=> {"a":1}
+=> SyntaxError
+=> null

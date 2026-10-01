@@ -10,6 +10,7 @@ solution and an explanation you reveal only when you ask for it.
 | Language switch | Python · JavaScript · TypeScript (header, top right) |
 | Solve in the browser | Write code, press **Run**, get checked against the examples (Python via [Pyodide](https://pyodide.org), JS natively, TS transpiled in the browser) |
 | Solution on demand | **Reveal solution & explanation** keeps the answer hidden until clicked; includes *Run this solution* |
+| Cheat sheet | 111 concepts and methods with examples side by side in Python, JavaScript and TypeScript: strings, lists, dicts, functions, classes, errors, regex, dates, async, typing, testing and SDET automation. Search, copy, **Run** each example, or open it in the Playground |
 | Playground | Run any program in any of the three languages; opens with a `Hello, Vijay!` starter; Python `input()` supported; **Stop** button for runaway loops |
 | Progress | Solved problems are remembered in your browser (`localStorage`) |
 | Static site | No backend: deploys to Vercel as plain files |
@@ -68,6 +69,7 @@ pytest --cov=playground
 npm install
 npm run typecheck      # strict type-check of content/ts/*.ts
 npm run test:ts        # every Python example is run against the TypeScript solution (408 checks)
+npm run test:cheatsheet  # runs every cheat-sheet example in Node, TypeScript and Pyodide and checks its output
 npm run test:e2e       # drives the real site in headless Chromium (needs Playwright)
 ```
 
@@ -79,10 +81,11 @@ playground/        Python solutions. One function per program: pNNN_name, with @
 pytest_scenarios/  50 pytest scenarios (test_sNNN_...) plus a small system under test (sut.py) and conftest.py
 content/ts/        TypeScript solutions. JavaScript is generated from these by stripping types at build time
 content/demos.py   Short runnable demos for classes / decorators (MinStack, retry, ...)
+content/cheatsheet/ The cheat sheet, as plain text (see "Adding a cheat-sheet entry")
 tests/             Runs every @case example, plus tests for classes, decorators and PySpark
-tools/             build_site.py (generates web/data), export_cases.py, check_ts.mjs, e2e.mjs
+tools/             build_site.py (generates web/data), export_cases.py, check_ts.mjs, cheatsheet.py, check_cheatsheet.mjs, e2e.mjs
 web/               The static site that Vercel serves (index.html, app.js, runner.js, ...)
-web/data/          GENERATED: problems.js and bundles.js. Commit these; Vercel does not run Python
+web/data/          GENERATED: problems.js, bundles.js and cheatsheet.js. Commit these; Vercel does not run Python
 ```
 
 One source of truth: the Python `@case` examples are exported to JSON, and the same examples check the Python, TypeScript and JavaScript solutions.
@@ -97,6 +100,29 @@ One source of truth: the Python `@case` examples are exported to JSON, and the s
 pytest -q && npm run typecheck && python tools/export_cases.py && npm run test:ts
 python tools/build_site.py        # regenerates web/data and docs/INDEX.md
 ```
+
+### Adding a cheat-sheet entry
+
+Entries live in `content/cheatsheet/*.txt` as plain text, so code needs no escaping:
+
+```
+@@ Strings                          <- section
+@@@ Split, join and strip           <- entry title
+Break text into pieces and glue it back together.     <- description
+! A gotcha shown in a highlighted note.
+@py                                 <- Python block (also @js, and optional @ts)
+parts = [p.strip() for p in " a, b ".split(",")]
+print(parts)
+=> ['a', 'b']                       <- one expected output line per "=>" line
+@js
+console.log(JSON.stringify(" a, b ".split(",").map((p) => p.trim())));
+=> ["a","b"]
+@js!                                <- trailing "!" = shown but never run (needs Node, network, a browser)
+```
+
+Every entry needs a `@py` and a `@js` block; `@ts` is optional (the site falls back to the JavaScript code).
+Runnable blocks must print exactly their `=>` output: `pytest` checks the Python ones in CPython and
+`npm run test:cheatsheet` checks Python (in Pyodide, the browser runtime), JavaScript and TypeScript. Then run `python tools/build_site.py`.
 
 ## Deploy to Vercel
 
@@ -113,6 +139,7 @@ If you keep this project inside a larger repository, set **Root Directory** to t
 
 - **Pyodide runs Python in the browser**, so only the standard library plus Pyodide's bundled packages (pandas, numpy, ...) are available. `requests`,
   Selenium, Playwright and PySpark are not; the PySpark problems (321-330) show reference code and run locally with `pytest tests/test_data.py`.
+- In the browser runner `asyncio.run(main())` is adapted so ordinary async scripts work (the browser cannot block); top-level `await` also works.
 - Code runs in a Web Worker with a time limit (10 s for problems, 20 s in the Playground), and can be stopped.
 - The explanations are written against the Python reference; the JS / TS versions follow the same approach.
 - The `pyodide` and `typescript` versions are pinned (`0.26.4`, `5.4.5`) in `web/runner.js` and `package.json`; keep them in sync if you upgrade.

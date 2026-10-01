@@ -1,0 +1,284 @@
+@@ Lists and arrays
+
+@@@ Add, remove and modify
+Python lists and JavaScript arrays are both ordered and resizable.
+@py
+nums = [3, 1, 2]
+nums.append(4)          # add to the end
+nums.insert(0, 9)       # add at an index
+nums.remove(1)          # remove first matching value
+last = nums.pop()       # remove and return the last item
+print(nums, last, len(nums))
+=> [9, 3, 2] 4 3
+@js
+const nums = [3, 1, 2];
+nums.push(4);                      // add to the end
+nums.unshift(9);                   // add at the start
+nums.splice(nums.indexOf(1), 1);   // remove one item at an index
+const last = nums.pop();           // remove and return the last item
+console.log(JSON.stringify(nums), last, nums.length);
+=> [9,3,2] 4 3
+@ts
+const nums: number[] = [3, 1, 2];
+nums.push(4);
+const last: number | undefined = nums.pop();   // pop() may return undefined on an empty array
+console.log(JSON.stringify(nums), last, nums.length);
+=> [3,1,2] 4 3
+
+@@@ Slicing
+@py
+a = [10, 20, 30, 40, 50]
+print(a[1:3], a[-2:], a[::2], a[::-1])
+=> [20, 30] [40, 50] [10, 30, 50] [50, 40, 30, 20, 10]
+@js
+const a = [10, 20, 30, 40, 50];
+console.log(JSON.stringify([a.slice(1, 3), a.slice(-2), a.filter((_, i) => i % 2 === 0), [...a].reverse()]));
+=> [[20,30],[40,50],[10,30,50],[50,40,30,20,10]]
+! slice() returns a copy. reverse() and sort() in JavaScript change the original array: copy first with [...a].
+
+@@@ Transform: map, filter, reduce
+Build new lists from existing ones.
+@py
+nums = [1, 2, 3, 4, 5]
+squares = [n * n for n in nums]            # list comprehension
+evens = [n for n in nums if n % 2 == 0]
+print(squares, evens, sum(nums))
+=> [1, 4, 9, 16, 25] [2, 4] 15
+@js
+const nums = [1, 2, 3, 4, 5];
+const squares = nums.map((n) => n * n);
+const evens = nums.filter((n) => n % 2 === 0);
+const total = nums.reduce((acc, n) => acc + n, 0);
+console.log(JSON.stringify(squares), JSON.stringify(evens), total);
+=> [1,4,9,16,25] [2,4] 15
+
+@@@ Sorting
+@py
+words = ["pear", "fig", "apple"]
+print(sorted(words), sorted(words, key=len), sorted([3, 1, 2], reverse=True))
+=> ['apple', 'fig', 'pear'] ['fig', 'pear', 'apple'] [3, 2, 1]
+@js
+const words = ["pear", "fig", "apple"];
+console.log(
+  JSON.stringify([...words].sort()),
+  JSON.stringify([...words].sort((a, b) => a.length - b.length)),
+  JSON.stringify([3, 1, 2].sort((a, b) => b - a)),
+);
+=> ["apple","fig","pear"] ["fig","pear","apple"] [3,2,1]
+! JavaScript's default sort() compares as text: [10, 9, 1].sort() gives [1, 10, 9]. Always pass a comparator for numbers.
+
+@@@ Find and test items
+@py
+nums = [3, 8, 5]
+print(next((n for n in nums if n > 4), None), any(n > 7 for n in nums), all(n > 2 for n in nums), nums.index(5))
+=> 8 True True 2
+@js
+const nums = [3, 8, 5];
+console.log(nums.find((n) => n > 4), nums.some((n) => n > 7), nums.every((n) => n > 2), nums.indexOf(5));
+=> 8 true true 2
+
+@@@ Unpacking, spread and enumerate
+@py
+first, *rest = [1, 2, 3]
+merged = [*rest, 9]
+for i, v in enumerate(["a", "b"], start=1):
+    print(i, v)
+print(first, rest, merged)
+=> 1 a
+=> 2 b
+=> 1 [2, 3] [2, 3, 9]
+@js
+const [first, ...rest] = [1, 2, 3];
+const merged = [...rest, 9];
+["a", "b"].forEach((v, i) => console.log(i + 1, v));
+console.log(first, JSON.stringify(rest), JSON.stringify(merged));
+=> 1 a
+=> 2 b
+=> 1 [2,3] [2,3,9]
+
+@@@ Remove duplicates and count
+@py
+from collections import Counter
+nums = [1, 2, 2, 3, 3, 3]
+print(sorted(set(nums)), Counter(nums).most_common(1), list(dict.fromkeys(nums)))
+=> [1, 2, 3] [(3, 3)] [1, 2, 3]
+@js
+const nums = [1, 2, 2, 3, 3, 3];
+const counts = {};
+for (const n of nums) counts[n] = (counts[n] ?? 0) + 1;
+const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+console.log(JSON.stringify([...new Set(nums)]), JSON.stringify(top));
+=> [1,2,3] ["3",3]
+! dict.fromkeys() (Python) and new Set() (JavaScript) both remove duplicates while keeping the first-seen order.
+
+@@@ 2D lists, zip and transpose
+@py
+grid = [[1, 2], [3, 4]]
+print([row[0] for row in grid], list(zip([1, 2], ["a", "b"])), [list(r) for r in zip(*grid)])
+=> [1, 3] [(1, 'a'), (2, 'b')] [[1, 3], [2, 4]]
+@js
+const grid = [[1, 2], [3, 4]];
+const firstCol = grid.map((r) => r[0]);
+const zipped = [1, 2].map((n, i) => [n, ["a", "b"][i]]);
+const transposed = grid[0].map((_, c) => grid.map((r) => r[c]));
+console.log(JSON.stringify(firstCol), JSON.stringify(zipped), JSON.stringify(transposed));
+=> [1,3] [[1,"a"],[2,"b"]] [[1,3],[2,4]]
+
+@@@ Min, max and sum
+@py
+nums = [4, 9, 2]
+print(min(nums), max(nums), sum(nums), max(["aa", "b"], key=len))
+=> 2 9 15 aa
+@js
+const nums = [4, 9, 2];
+console.log(Math.min(...nums), Math.max(...nums), nums.reduce((a, b) => a + b, 0), ["aa", "b"].reduce((a, b) => (b.length > a.length ? b : a)));
+=> 2 9 15 aa
+
+@@@ Flatten and chunk
+@py
+nested = [[1, 2], [3], [4, 5]]
+flat = [x for sub in nested for x in sub]
+chunks = [flat[i:i + 2] for i in range(0, len(flat), 2)]
+print(flat, chunks)
+=> [1, 2, 3, 4, 5] [[1, 2], [3, 4], [5]]
+@js
+const nested = [[1, 2], [3], [4, 5]];
+const flat = nested.flat();
+const chunks = [];
+for (let i = 0; i < flat.length; i += 2) chunks.push(flat.slice(i, i + 2));
+console.log(JSON.stringify(flat), JSON.stringify(chunks));
+=> [1,2,3,4,5] [[1,2],[3,4],[5]]
+
+@@ Dicts, objects, sets and maps
+
+@@@ Create, read and update a dictionary
+A Python dict is a JavaScript object (or Map): key to value pairs.
+@py
+user = {"name": "Vijay", "role": "QA"}
+user["age"] = 30
+print(user.get("email", "n/a"), "name" in user, list(user.keys()), len(user))
+=> n/a True ['name', 'role', 'age'] 3
+@js
+const user = { name: "Vijay", role: "QA" };
+user.age = 30;
+console.log(user.email ?? "n/a", "name" in user, JSON.stringify(Object.keys(user)), Object.keys(user).length);
+=> n/a true ["name","role","age"] 3
+@ts
+const user: { name: string; role: string; age?: number } = { name: "Vijay", role: "QA" };
+user.age = 30;
+console.log(user.age, Object.keys(user).length);
+=> 30 3
+
+@@@ Loop and transform a dictionary
+@py
+prices = {"pen": 2, "book": 10}
+for k, v in prices.items():
+    print(k, v)
+doubled = {k: v * 2 for k, v in prices.items()}
+print(doubled)
+=> pen 2
+=> book 10
+=> {'pen': 4, 'book': 20}
+@js
+const prices = { pen: 2, book: 10 };
+for (const [k, v] of Object.entries(prices)) console.log(k, v);
+const doubled = Object.fromEntries(Object.entries(prices).map(([k, v]) => [k, v * 2]));
+console.log(JSON.stringify(doubled));
+=> pen 2
+=> book 10
+=> {"pen":4,"book":20}
+
+@@@ Merge and copy
+Later keys win when both dictionaries have the same key.
+@py
+a = {"x": 1, "y": 2}
+b = {"y": 9, "z": 3}
+print({**a, **b}, a | b)
+=> {'x': 1, 'y': 9, 'z': 3} {'x': 1, 'y': 9, 'z': 3}
+@js
+const a = { x: 1, y: 2 };
+const b = { y: 9, z: 3 };
+console.log(JSON.stringify({ ...a, ...b }), JSON.stringify(Object.assign({}, a, b)));
+=> {"x":1,"y":9,"z":3} {"x":1,"y":9,"z":3}
+! Both copies are shallow: nested objects are shared. Use copy.deepcopy (Python) or structuredClone (JavaScript) for a deep copy.
+
+@@@ Group and count (defaultdict / reduce)
+Group test names by their result, a common reporting task.
+@py
+from collections import defaultdict
+results = [("login", "pass"), ("cart", "fail"), ("search", "pass")]
+groups = defaultdict(list)
+for name, status in results:
+    groups[status].append(name)
+print(dict(groups))
+=> {'pass': ['login', 'search'], 'fail': ['cart']}
+@js
+const results = [["login", "pass"], ["cart", "fail"], ["search", "pass"]];
+const groups = {};
+for (const [name, status] of results) (groups[status] ??= []).push(name);
+console.log(JSON.stringify(groups));
+=> {"pass":["login","search"],"fail":["cart"]}
+
+@@@ Defaults and destructuring
+@py
+cfg = {"host": "ci.local"}
+host = cfg.get("host", "localhost")
+port = cfg.get("port", 8080)
+print(host, port)
+=> ci.local 8080
+@js
+const { host = "localhost", port = 8080 } = { host: "ci.local" };
+console.log(host, port);
+=> ci.local 8080
+
+@@@ Optional chaining (safe access)
+Read deep values without crashing when a level is missing.
+@py
+user = {"profile": {"address": None}}
+city = ((user.get("profile") or {}).get("address") or {}).get("city", "unknown")
+print(city)
+=> unknown
+@js
+const user = { profile: { address: null } };
+console.log(user?.profile?.address?.city ?? "unknown");
+=> unknown
+
+@@@ Sets
+Unique values with fast membership tests and set algebra.
+@py
+a, b = {1, 2, 3}, {3, 4}
+print(sorted(a | b), sorted(a & b), sorted(a - b), 3 in a)
+=> [1, 2, 3, 4] [3] [1, 2] True
+@js
+const a = new Set([1, 2, 3]);
+const b = new Set([3, 4]);
+console.log(
+  JSON.stringify([...new Set([...a, ...b])]),
+  JSON.stringify([...a].filter((x) => b.has(x))),
+  JSON.stringify([...a].filter((x) => !b.has(x))),
+  a.has(3),
+);
+=> [1,2,3,4] [3] [1,2] true
+
+@@@ Map and non-string keys
+Use a Map when keys are not plain strings.
+@py
+points = {(1, 2): "start", (3, 4): "end"}
+print(points[(1, 2)], len(points))
+=> start 2
+@js
+const key = { id: 1 };
+const m = new Map([[key, "start"]]);
+console.log(m.get(key), m.size, m.has({ id: 1 }));
+=> start 1 false
+! Objects as Map keys are compared by reference, so a different {id: 1} is not found.
+
+@@@ Sort a list of dictionaries
+@py
+rows = [{"n": "b", "score": 7}, {"n": "a", "score": 9}]
+print([r["n"] for r in sorted(rows, key=lambda r: r["score"], reverse=True)])
+=> ['a', 'b']
+@js
+const rows = [{ n: "b", score: 7 }, { n: "a", score: 9 }];
+console.log(JSON.stringify([...rows].sort((x, y) => y.score - x.score).map((r) => r.n)));
+=> ["a","b"]
