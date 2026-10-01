@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QA Interview Playground</title>
+  <meta name="description" content="330 interview programs for SDET and QA engineers in Python, JavaScript and TypeScript, with an in-browser playground.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234f46e5'/%3E%3Cpath d='M10 11l-4 5 4 5M22 11l4 5-4 5M18 9l-4 14' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <script>
+    // Apply the saved (or system) theme before first paint to avoid a flash.
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("qa.theme"); } catch (e) {}
+      if (!t) t = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", t);
+    })();
+  </script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <button class="icon-btn menu-btn" id="menuBtn" aria-label="Toggle problem list" aria-expanded="false">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <a class="brand" href="#" id="brand"><span class="logo" aria-hidden="true">&lt;/&gt;</span><span class="brand-text">QA Interview Playground</span></a>
+    <nav class="tabs" aria-label="Sections">
+      <button class="tab" id="tabProblems" data-view="problems">Problems</button>
+      <button class="tab" id="tabPlayground" data-view="playground">Playground</button>
+    </nav>
+    <div class="spacer"></div>
+    <div class="seg" id="langSeg" role="radiogroup" aria-label="Language">
+      <button role="radio" data-lang="py" aria-label="Python"><span class="long">Python</span><span class="short">PY</span></button>
+      <button role="radio" data-lang="js" aria-label="JavaScript"><span class="long">JavaScript</span><span class="short">JS</span></button>
+      <button role="radio" data-lang="ts" aria-label="TypeScript"><span class="long">TypeScript</span><span class="short">TS</span></button>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Toggle dark mode" title="Toggle light / dark">
+      <svg class="i-moon" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+      <svg class="i-sun" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar" id="sidebar" aria-label="Problem list">
+      <div class="side-head">
+        <input id="search" type="search" placeholder="Search 330 problems…" aria-label="Search problems" autocomplete="off">
+        <div class="chips" id="chips" role="group" aria-label="Categories"></div>
+        <div class="progress-row">
+          <div class="progress" aria-hidden="true"><div id="progressBar"></div></div>
+          <span id="progressText" class="muted"></span>
+        </div>
+        <label class="check"><input type="checkbox" id="hideSolved"> Hide solved</label>
+      </div>
+      <ul class="plist" id="plist"></ul>
+    </aside>
+
+    <main class="main" id="main">
+      <section id="viewProblems" class="view"></section>
+      <section id="viewPlayground" class="view" hidden></section>
+    </main>
+  </div>
+  <div class="scrim" id="scrim" hidden></div>
+
+  <script src="data/problems.js"></script>
+  <script src="data/bundles.js"></script>
+  <script src="hl.js"></script>
+  <script src="runner.js"></script>
+  <script src="samples.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11", cache: pip }
+      - uses: actions/setup-java@v4          # PySpark needs a JVM
+        with: { distribution: temurin, java-version: "17" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm }
+      - run: pip install -r requirements.txt
+      - run: npm ci
+      - name: Python programs + pytest scenarios + PySpark
+        run: python -m pytest -q
+      - name: TypeScript type-check
+        run: npm run typecheck
+      - name: TypeScript solutions produce the same answers as Python
+        run: python tools/export_cases.py && npm run test:ts
+      - name: Generated site data is up to date
+        run: |
+          python tools/build_site.py
+          git diff --exit-code web/data || (echo "::error::run 'python tools/build_site.py' and commit web/data" && exit 1)
