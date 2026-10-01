@@ -356,6 +356,11 @@ body[data-view="sql"] #langSeg { display: none; }
 .hero .tag { margin: 0 0 8px; font-size: 17px; font-weight: 700; color: var(--side-text); opacity: .92; }
 .site-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 32px 0 8px; padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .site-foot > div { display: flex; flex-direction: column; gap: 2px; }
+.site-foot .about { gap: 8px; flex: 1 1 100%; }
+.site-foot .about p { margin: 0; } .site-foot .about ul { margin: 0; padding-left: 20px; } .site-foot .about li { margin-bottom: 3px; }
+.site-foot .who { font-size: 18px; } .site-foot .who a { color: var(--link); }
+.eyebrow-s { font-size: 12px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.skills { display: flex; flex-wrap: wrap; gap: 6px; }
 .site-foot nav { display: flex; flex-wrap: wrap; gap: 8px; }
 .site-foot nav a { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border: 1px solid var(--border-strong); border-radius: 999px; color: var(--text); text-decoration: none; font-weight: 700; font-size: 14px; }
 .site-foot nav a:hover { background: var(--bg-hover); border-color: var(--link); }
