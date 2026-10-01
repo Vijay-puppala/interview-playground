@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="light" data-palette="aubergine">
+<html lang="en" data-theme="light" data-palette="portfolio">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,8 +10,8 @@
   <meta property="og:description" content="Python, JavaScript, TypeScript and SQL practice for SDET and QA engineers. Runs entirely in your browser.">
   <meta property="og:type" content="website">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%233f0e40'/%3E%3Cpath d='M10 11l-4 5 4 5M22 11l4 5-4 5M18 9l-4 14' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-  <link rel="preload" href="fonts/lato-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="fonts/lato-latin-900-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/inter-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
   <script>
     // Apply light / dark (from the system setting) and the saved colour theme before first paint to avoid a flash.
     (function () {
@@ -19,7 +19,7 @@
       var dark = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
       var root = document.documentElement;
       root.setAttribute("data-theme", dark ? "dark" : "light");
-      root.setAttribute("data-palette", get("qa.palette") || "aubergine");
+      root.setAttribute("data-palette", get("qa.palette") || "portfolio");
     })();
   </script>
   <link rel="stylesheet" href="styles.css">

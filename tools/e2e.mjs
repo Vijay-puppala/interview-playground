@@ -356,7 +356,7 @@ await check("colour themes: picker switches the colour theme and it persists", a
   await page.waitForSelector(".hero");
   eq(await page.getAttribute("html", "data-palette"), "ochin", "palette persisted");
   await page.click("#paletteBtn");
-  await page.click('#palette [data-palette="aubergine"]');
+  await page.click('#palette [data-palette="portfolio"]');
   await page.keyboard.press("Escape");
 });
 
@@ -371,7 +371,7 @@ await check("colour themes: every palette is readable (WCAG AA) in light and dar
     const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
     const root = document.documentElement;
     const out = [];
-    for (const pal of ["aubergine", "ochin", "monument", "hoth", "choco-mint", "sweet-treat"]) {
+    for (const pal of ["portfolio", "aubergine", "ochin", "monument", "hoth", "choco-mint", "sweet-treat"]) {
       for (const mode of ["light", "dark"]) {
         root.setAttribute("data-palette", pal); root.setAttribute("data-theme", mode);
         const v = (n) => parse(getComputedStyle(root).getPropertyValue(n));
@@ -395,7 +395,7 @@ await check("colour themes: every palette is readable (WCAG AA) in light and dar
         }
       }
     }
-    root.setAttribute("data-palette", "aubergine"); root.setAttribute("data-theme", "light");
+    root.setAttribute("data-palette", "portfolio"); root.setAttribute("data-theme", "light");
     return out;
   });
   if (failures.length) throw new Error(failures.length + " contrast failures: " + failures.slice(0, 6).join(" | "));
