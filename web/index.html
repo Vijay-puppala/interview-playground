@@ -3,20 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>QA Interview Playground</title>
-  <meta name="description" content="Interview programs, cheat sheets and an in-browser playground for SDET and QA engineers, in Python, JavaScript and TypeScript.">
+  <title>SDET Interview Playground</title>
+  <meta name="description" content="330 interview problems, a 170-entry cheat sheet, 500 SQL questions on an in-browser PostgreSQL and a code playground for SDET and QA engineers, in Python, JavaScript, TypeScript and SQL.">
+  <meta name="author" content="Vijayanand Puppala (Vijay-puppala)">
+  <meta property="og:title" content="SDET Interview Playground">
+  <meta property="og:description" content="Python, JavaScript, TypeScript and SQL practice for SDET and QA engineers. Runs entirely in your browser.">
+  <meta property="og:type" content="website">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%233f0e40'/%3E%3Cpath d='M10 11l-4 5 4 5M22 11l4 5-4 5M18 9l-4 14' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="preload" href="fonts/lato-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/lato-latin-900-normal.woff2" as="font" type="font/woff2" crossorigin>
   <script>
-    // Apply the saved mode (light / dark / system) and colour theme before first paint to avoid a flash.
+    // Apply light / dark (from the system setting) and the saved colour theme before first paint to avoid a flash.
     (function () {
       var get = function (k) { try { var v = localStorage.getItem(k); return v == null ? null : JSON.parse(v); } catch (e) { return null; } };
-      var mode = get("qa.theme");
       var dark = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
-      var resolved = mode === "light" || mode === "dark" ? mode : (dark ? "dark" : "light");
       var root = document.documentElement;
-      root.setAttribute("data-theme", resolved);
+      root.setAttribute("data-theme", dark ? "dark" : "light");
       root.setAttribute("data-palette", get("qa.palette") || "aubergine");
     })();
   </script>
@@ -44,15 +46,11 @@
           </button>
           <div class="popover" id="palette" role="dialog" aria-label="Colour theme" hidden></div>
         </div>
-        <button class="icon-btn on-top" id="themeBtn" aria-label="Toggle dark mode" title="Toggle light / dark">
-          <svg class="i-moon" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-          <svg class="i-sun" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        </button>
       </div>
     </header>
 
     <nav class="rail" aria-label="Sections">
-      <a class="logo" href="#home" id="brand" aria-label="QA Playground home">&lt;/&gt;</a>
+      <a class="logo" href="#home" id="brand" aria-label="SDET Interview Playground home" title="SDET Interview Playground">&lt;/&gt;</a>
       <button class="tab rail-item" data-view="home" aria-label="Home">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 11l8-7 8 7v8a1 1 0 01-1 1h-4v-6H9v6H5a1 1 0 01-1-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>Home</span></button>
       <button class="tab rail-item" data-view="problems" aria-label="Problems">
@@ -127,6 +125,7 @@
     </div>
   </div>
 
+  <script src="site.js"></script>
   <script src="data/problems.js"></script>
   <script src="data/bundles.js"></script>
   <script src="data/cheatsheet.js"></script>

@@ -1,4 +1,4 @@
-# QA Interview Playground
+# SDET Interview Playground
 
 **330 interview programs for SDET / QA automation roles, in Python, JavaScript and TypeScript, with an in-browser playground.**
 Strings, arrays, numbers, data structures, automation utilities, pandas / PySpark data checks and 50 pytest scenarios, each with a hidden
@@ -7,8 +7,8 @@ solution and an explanation you reveal only when you ask for it.
 | | |
 |---|---|
 | Slack-style layout | Icon rail, a sidebar that follows the section you are in (problems, cheat-sheet sections, playground starters), and a top bar with search. On phones the rail becomes a bottom bar and the sidebar a drawer |
-| Colour themes | Six Slack-inspired themes (Aubergine, Ochin, Monument, Hoth, Choco Mint, Sweet Treat), each in light and dark, plus *System* mode. Pick them from the palette button; all combinations are tested for WCAG AA contrast |
-| Quick search | **Ctrl+K** (or `/`) jumps to any problem, cheat-sheet entry or page, and runs commands such as *Toggle dark mode* or *Use TypeScript* |
+| Colour themes | Six Slack-inspired themes (Aubergine, Ochin, Monument, Hoth, Choco Mint, Sweet Treat), each in light and dark. Light / dark always follows your system setting; pick the colour theme from the palette button; all combinations are tested for WCAG AA contrast |
+| Quick search | **Ctrl+K** (or `/`) jumps to any problem, cheat-sheet entry or page, and runs commands such as *Use TypeScript* |
 | Dashboard | A home page with your progress overall and by topic, a *Continue* button and your recently solved problems |
 | Language switch | Python · JavaScript · TypeScript (header, top right) |
 | Solve in the browser | Write code, press **Run**, get checked against the examples (Python via [Pyodide](https://pyodide.org), JS natively, TS transpiled in the browser) |
@@ -157,3 +157,10 @@ after editing a query run `node tools/check_sql.mjs --fill-cheatsheet` to regene
 - The explanations are written against the Python reference; the JS / TS versions follow the same approach.
 - The SQL engine downloads PGlite (about 5 MB) the first time you press Run on SQL; it is pinned to `0.5.8` in `web/runner.js` and `package.json`.
 - The `pyodide` and `typescript` versions are pinned (`0.26.4`, `5.4.5`) in `web/runner.js` and `package.json`; keep them in sync if you upgrade.
+
+## Author
+
+Created by **Vijayanand Puppala** ([@Vijay-puppala](https://github.com/Vijay-puppala)).
+[LinkedIn](https://www.linkedin.com/in/vijayanand-puppala/) · [Portfolio](https://vijayanand-puppala-data-portfolio.vercel.app/) · [Portfolio (Lovable)](https://vijayanand-puppala-data-portfolio.lovable.app/)
+
+Author details and the site name live in one place: `web/site.js`.
