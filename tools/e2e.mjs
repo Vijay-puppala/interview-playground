@@ -154,16 +154,14 @@ await check("Playground default is 'Hello, Vijay!' (python)", async () => {
   await page.goto(base + "#playground");
   await page.waitForSelector("#pgRun");
   if (!(await page.inputValue("#pgEditor textarea")).includes('"Vijay"')) throw new Error("hello Vijay sample missing");
-  eq(await page.locator("#sampleSel option").first().textContent(), "Hello, Vijay!", "first sample");
+  eq((await page.locator("#sampleList button").first().textContent()).trim(), "Hello, Vijay!", "first sample");
   await page.click("#pgRun");
   await page.waitForFunction(() => document.querySelector("#pgOut")?.textContent.includes("Hello, Vijay!"), null, { timeout: 90000 });
   if (!(await page.textContent("#pgOut")).includes("3. Welcome to the QA playground, Vijay")) throw new Error("loop output missing");
 });
 
 await check("Playground: python input() and error traceback", async () => {
-  await page.selectOption("#sampleSel", { label: "Read input()" });
-  await page.click("#pgReset", { timeout: 1000 }).catch(() => {});
-  await page.selectOption("#sampleSel", { label: "Read input()" });
+  await page.click('#sampleList button:has-text("Read input()")');
   await page.fill("details.stdin textarea", "Tester").catch(async () => { await page.click("details.stdin summary"); await page.fill("details.stdin textarea", "Tester"); });
   await page.click("#pgRun");
   await page.waitForFunction(() => document.querySelector("#pgOut")?.textContent.includes("Hello, Tester"), null, { timeout: 30000 });
@@ -283,6 +281,142 @@ await check("Playground: python asyncio.run(main()) prints its output", async ()
   await setCode("#pgEditor textarea", "import asyncio\nasync def main():\n    return 1 / 0\nasyncio.run(main())");
   await page.click("#pgRun");
   await page.waitForFunction(() => document.querySelector("#pgOut")?.textContent.includes("ZeroDivisionError"), null, { timeout: 30000 });
+});
+
+await check("home dashboard: hero, stats and progress by topic", async () => {
+  await page.setViewportSize({ width: 1360, height: 860 });
+  await page.goto(base + "#home");
+  await page.waitForSelector(".hero");
+  if (!(await page.textContent(".hero")).includes("Welcome back")) throw new Error("hero text missing");
+  eq(await page.locator(".stat").count(), 4, "stat tiles");
+  eq(await page.locator(".cat-row").count(), 7, "topic rows");
+  await page.click('.cat-row[data-cat="strings"]');
+  await page.waitForSelector("#viewProblems:not([hidden]) h1.title");
+  if (!/^#p\d{3}$/.test(await page.evaluate(() => location.hash))) throw new Error("did not open a problem");
+});
+
+await check("sidebar shows the context of the current section", async () => {
+  const visible = async (id) => (await page.locator(id).isVisible());
+  await page.goto(base + "#cheatsheet");
+  await page.waitForSelector(".cs-entry");
+  eq([await visible("#ctxCheat"), await visible("#ctxProblems"), await visible("#ctxPlay")].join(), "true,false,false", "cheat sheet");
+  await page.goto(base + "#playground");
+  await page.waitForSelector("#pgRun");
+  eq([await visible("#ctxCheat"), await visible("#ctxProblems"), await visible("#ctxPlay")].join(), "false,false,true", "playground");
+  await page.goto(base + "#p001");
+  await page.waitForSelector("#editorHost textarea");
+  eq([await visible("#ctxCheat"), await visible("#ctxProblems"), await visible("#ctxPlay")].join(), "false,true,false", "problems");
+  eq(await page.getAttribute('#plist button[data-id="p001"]', "aria-current"), "true", "current problem is highlighted");
+});
+
+await check("quick switcher: Ctrl+K opens, searches problems and cheat sheet, Enter navigates", async () => {
+  await page.goto(base + "#home");
+  await page.waitForSelector(".hero");
+  await page.keyboard.press("Control+k");
+  await page.waitForSelector("#qs:not([hidden])");
+  await page.keyboard.type("palindrome");
+  await page.waitForFunction(() => document.querySelectorAll(".qs-item").length >= 1);
+  const first = await page.textContent(".qs-item .t");
+  if (!/palindrome/i.test(first)) throw new Error("unexpected first result: " + first);
+  await page.keyboard.press("Enter");
+  await page.waitForSelector("#viewProblems:not([hidden]) h1.title");
+  eq(await page.locator("#qs").isHidden(), true, "closed after Enter");
+  // a cheat-sheet entry deep-links to its card
+  await page.keyboard.press("/");
+  await page.waitForSelector("#qs:not([hidden])");
+  await page.keyboard.type("sorting");
+  await page.waitForFunction(() => [...document.querySelectorAll(".qs-item .kind")].some((k) => k.textContent === "Cheat"));
+  await page.click('.qs-item:has(.kind:text("Cheat"))');
+  await page.waitForSelector(".cs-entry.flash, .cs-entry");
+  if (!(await page.evaluate(() => location.hash)).startsWith("#cheatsheet/")) throw new Error("no deep link");
+  await page.keyboard.press("Control+k");
+  await page.waitForSelector("#qs:not([hidden])");
+  await page.keyboard.press("Escape");
+  eq(await page.locator("#qs").isHidden(), true, "Escape closes");
+});
+
+await check("cheat sheet deep link scrolls the entry into view", async () => {
+  await page.goto(base + "#cheatsheet/sorting");
+  await page.waitForSelector("#cs-sorting");
+  const top = await page.evaluate(() => document.querySelector("#cs-sorting").getBoundingClientRect().top);
+  if (top < 0 || top > 300) throw new Error("entry not scrolled into view, top=" + top);
+});
+
+await check("colour themes: picker switches palette and mode, and both persist", async () => {
+  await page.goto(base + "#home");
+  await page.waitForSelector(".hero");
+  await page.click("#paletteBtn");
+  await page.waitForSelector("#palette:not([hidden])");
+  await page.click('#palette [data-palette="ochin"]');
+  eq(await page.getAttribute("html", "data-palette"), "ochin", "palette");
+  await page.click('#palette [data-mode="dark"]');
+  eq(await page.getAttribute("html", "data-theme"), "dark", "mode");
+  await page.keyboard.press("Escape");
+  eq(await page.locator("#palette").isHidden(), true, "Escape closes the picker");
+  await page.reload();
+  await page.waitForSelector(".hero");
+  eq(await page.getAttribute("html", "data-palette"), "ochin", "palette persisted");
+  eq(await page.getAttribute("html", "data-theme"), "dark", "mode persisted");
+  await page.click("#paletteBtn");
+  await page.click('#palette [data-palette="aubergine"]');
+  await page.click('#palette [data-mode="light"]');
+  await page.keyboard.press("Escape");
+});
+
+await check("colour themes: every palette is readable (WCAG AA) in light and dark", async () => {
+  await page.goto(base + "#home");
+  await page.waitForSelector(".hero");
+  const failures = await page.evaluate(() => {
+    const parse = (c) => { const m = c.trim().match(/^#([0-9a-f]{6})$/i); if (m) return { r: parseInt(m[1].slice(0, 2), 16), g: parseInt(m[1].slice(2, 4), 16), b: parseInt(m[1].slice(4, 6), 16), a: 1 };
+      const v = c.match(/rgba?\(([^)]+)\)/)[1].split(",").map(Number); return { r: v[0], g: v[1], b: v[2], a: v[3] === undefined ? 1 : v[3] }; };
+    const over = (fg, bg) => ({ r: fg.r * fg.a + bg.r * (1 - fg.a), g: fg.g * fg.a + bg.g * (1 - fg.a), b: fg.b * fg.a + bg.b * (1 - fg.a), a: 1 });
+    const lum = ({ r, g, b }) => { const f = (x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+    const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+    const root = document.documentElement;
+    const out = [];
+    for (const pal of ["aubergine", "ochin", "monument", "hoth", "choco-mint", "sweet-treat"]) {
+      for (const mode of ["light", "dark"]) {
+        root.setAttribute("data-palette", pal); root.setAttribute("data-theme", mode);
+        const v = (n) => parse(getComputedStyle(root).getPropertyValue(n));
+        const bg = v("--bg"), topbg = v("--top-bg"), sidebg = v("--side-bg");
+        const topField = over(v("--top-field"), topbg);
+        const sideField = over(v("--side-field"), sidebg);
+        const pairs = {
+          "text on page": [v("--text"), bg, 4.5], "muted on page": [v("--muted"), bg, 4.5], "link on page": [v("--link"), bg, 4.5],
+          "ok on ok-bg": [v("--ok"), v("--ok-bg"), 4.5], "bad on bad-bg": [v("--bad"), v("--bad-bg"), 4.5], "warn on warn-bg": [v("--warn"), v("--warn-bg"), 4.5],
+          "primary button": [v("--on-btn"), v("--btn-bg"), 4.5], "primary button hover": [v("--on-btn"), v("--btn-hover"), 4.5],
+          "sidebar text": [v("--side-text"), sidebg, 4.5], "sidebar muted": [over(v("--side-muted"), sidebg), sidebg, 4.5],
+          "sidebar field": [over(v("--side-muted"), sideField), sideField, 4.5],
+          "sidebar active": [v("--side-active-text"), v("--side-active-bg"), 4.5], "sidebar check mark": [v("--side-accent"), sidebg, 3],
+          "top bar": [v("--top-text"), topbg, 4.5], "top search": [v("--top-text"), topField, 4.5],
+          "language switch (selected)": [v("--seg-on-text"), v("--seg-on-bg"), 4.5],
+          "quick switcher selection": [v("--sel-text"), v("--sel-bg"), 4.5],
+        };
+        for (const [name, [fg, b, min]] of Object.entries(pairs)) {
+          const r = ratio(over(fg, b), b);
+          if (r < min) out.push(`${pal}/${mode}: ${name} ${r.toFixed(2)} < ${min}`);
+        }
+      }
+    }
+    root.setAttribute("data-palette", "aubergine"); root.setAttribute("data-theme", "light");
+    return out;
+  });
+  if (failures.length) throw new Error(failures.length + " contrast failures: " + failures.slice(0, 6).join(" | "));
+});
+
+await check("no horizontal overflow on any view from 320px to 412px", async () => {
+  const bad = [];
+  for (const w of [320, 360, 390, 412]) {
+    await page.setViewportSize({ width: w, height: 800 });
+    for (const hash of ["#home", "#p002", "#cheatsheet", "#playground"]) {
+      await page.goto(base + hash);
+      await page.waitForTimeout(250);
+      const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      if (over > 0) bad.push(`${w}px ${hash} +${over}`);
+    }
+  }
+  if (bad.length) throw new Error(bad.join(", "));
+  await page.setViewportSize({ width: 1280, height: 900 });
 });
 
 await check("mobile layout: menu opens the problem list", async () => {
