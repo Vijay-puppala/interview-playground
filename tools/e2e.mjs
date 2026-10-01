@@ -545,20 +545,21 @@ await check("site title and author links (GitHub, LinkedIn)", async () => {
   if (!/Quality Engineering Manager/.test(await page.textContent(".author"))) throw new Error("author role missing");
 });
 
-await check("brand name top left, author credit in the sidebar, About page", async () => {
+await check("brand name top left, About pinned in the rail, About page", async () => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(base + "#p001");
   await page.waitForSelector("#brandName");
   eq((await page.textContent("#brandName .long")).trim(), "SDET Interview Playground", "brand text");
   const box = await page.locator("#brandName").boundingBox();
   if (box.x > 200 || box.y > 50) throw new Error("brand is not in the top-left corner " + JSON.stringify(box));
-  if (!/Vijayanand Puppala/.test(await page.textContent("#sideCredit"))) throw new Error("author missing in the sidebar");
-  eq(await page.isVisible("#sideCredit"), true, "credit visible");
-  await page.click("#sideCredit .who");
+  eq(await page.locator("#sideCredit").count(), 0, "no author footer inside the sidebar any more");
+  const rail = await page.locator(".rail-about").boundingBox();
+  if (rail.y < 500) throw new Error("About is not pinned to the bottom of the rail: " + rail.y);
+  await page.click(".rail-about");
   await page.waitForSelector("#viewAbout .author");
   if (!/Quality Engineering Manager/.test(await page.textContent("#viewAbout"))) throw new Error("About page content missing");
   await page.goto(base + "#cheatsheet");
-  await page.click(".about-btn");
+  await page.click(".rail-about");
   await page.waitForSelector("#viewAbout .author");
 });
 

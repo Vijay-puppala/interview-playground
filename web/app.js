@@ -870,12 +870,6 @@
   $("#brand").addEventListener("click", (e) => { e.preventDefault(); location.hash = "home"; if (state.view === "home") route(); });
   window.addEventListener("hashchange", route);
 
-  (function sideCredit() {
-    const a = SITE.author;
-    const l = (url, label, key) => (url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(label)}" title="${esc(label)}">${ico(key, 18)}</a>` : "");
-    $("#sideCredit").innerHTML = `<a class="who" href="#about"><b>${esc(a.name)}</b><span>${esc(a.role)}</span></a>
-      <span class="links">${l(a.github, "GitHub", "github")}${l(a.linkedin, "LinkedIn", "linkedin")}${(a.websites || []).slice(0, 1).map((w) => l(w.url, w.label, "web")).join("")}</span>`;
-  })();
   sqlTab = window.SqlTab({ $, $$, esc, store, createEditor, closeMenu, Runner });
   renderChips();
   updateProgress();

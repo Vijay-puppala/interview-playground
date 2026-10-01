@@ -27,7 +27,7 @@ window.SITE = {
       { icon: "cloudcheck", html: "Proficient with <b>AWS, Azure, Docker, Kubernetes</b>, Oracle, PostgreSQL, Snowflake, HP ALM, Jira, Confluence and Jenkins." },
     ],
     career: [
-      { company: "Hitachi Vantara India Pvt. Ltd.", icon: "hitachi", place: "Hyderabad, India", position: "Software Development Engineer Test Engineering Manager M3", dates: "Jan 2022 – Present", current: true },
+      { company: "Hitachi Vantara India Pvt. Ltd (Pentaho)", icon: "hitachi", place: "Hyderabad, India", position: "Software Development Engineer Test Engineering Manager M3", dates: "Jan 2022 – Present", current: true },
       { company: "Oracle India Pvt. Ltd.", icon: "oracle", place: "Hyderabad, India", position: "Principal Quality Assurance Engineer", dates: "Jun 2018 – Jan 2022" },
       { company: "United Technologies Corporation", icon: "utc", place: "Hyderabad, India", position: "Senior Engineer", dates: "Jul 2011 – Jun 2018" },
     ],
