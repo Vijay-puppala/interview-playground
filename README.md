@@ -160,7 +160,10 @@ after editing a query run `node tools/check_sql.mjs --fill-cheatsheet` to regene
 
 ## Author
 
-Created by **Vijayanand Puppala** ([@Vijay-puppala](https://github.com/Vijay-puppala)).
+Created by **Vijayanand Puppala** ([@Vijay-puppala](https://github.com/Vijay-puppala)), Quality Engineering Manager with 14+ years leading Quality
+Engineering teams across enterprise, cloud, embedded, firmware, hardware and SaaS: test strategy, data governance validation (discovery, catalog, quality,
+lineage, classification, profiling; GDPR, HIPAA, CCPA) and GenAI-enabled automation. Led QE for Hitachi Vantara's Pentaho Platform, Oracle Fusion HCM Cloud
+and physical security solutions. Tools: AWS, Azure, Docker, Kubernetes, Oracle, PostgreSQL, Snowflake, HP ALM, Jira, Confluence, Jenkins.
 [LinkedIn](https://www.linkedin.com/in/vijayanand-puppala/) · [Portfolio](https://vijayanand-puppala-data-portfolio.vercel.app/) · [Portfolio (Lovable)](https://vijayanand-puppala-data-portfolio.lovable.app/)
 
 Author details and the site name live in one place: `web/site.js`.

@@ -534,6 +534,7 @@ await check("site title and author links (GitHub, LinkedIn)", async () => {
   if (!hrefs.includes("https://www.linkedin.com/in/vijayanand-puppala/")) throw new Error("LinkedIn link missing");
   for (const u of ["https://vijayanand-puppala-data-portfolio.vercel.app/", "https://vijayanand-puppala-data-portfolio.lovable.app/"]) if (!hrefs.includes(u)) throw new Error("website missing " + u);
   if (!/Vijay-puppala/.test(await page.textContent(".site-foot"))) throw new Error("author credit missing");
+  if (!/Quality Engineering Manager/.test(await page.textContent(".site-foot"))) throw new Error("author role missing");
 });
 
 await check("home dashboard shows SQL progress", async () => {
