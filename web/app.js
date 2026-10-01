@@ -231,6 +231,7 @@
     term: '<svg viewBox="0 0 24 24" width="22" height="22"><rect x="3" y="4" width="18" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 10l3 2.5L7 15M12.5 15H17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     table: '<svg viewBox="0 0 24 24" width="22" height="22"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 10h18M9 10v10" stroke="currentColor" stroke-width="1.8"/></svg>',
     db: '<svg viewBox="0 0 24 24" width="22" height="22"><ellipse cx="12" cy="6" rx="7.5" ry="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4.5 6v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6M4.5 12v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
+    list: '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M9 6h11M9 12h11M9 18h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M3.500 6l1.200 1.200L7 4.900M3.500 12l1.200 1.200L7 10.900M3.500 18l1.200 1.200L7 16.900" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     flask: '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 001.3 2.2h12.4a1.5 1.5 0 001.3-2.2L14 9V3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
   };
 
@@ -239,74 +240,71 @@
     return all.find((p) => !state.solved.has(p.id)) || all[0];
   }
 
-  const icon = {
-    github: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>',
-    pin: '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M12 21s7-6.100 7-11a7 7 0 10-14 0c0 4.900 7 11 7 11z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="2.500" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
-    mail: '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.500 7l8.500 6 8.500-6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
-    web: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 12h18M12 3c2.600 2.700 3.900 5.700 3.900 9s-1.300 6.300-3.900 9c-2.600-2.700-3.900-5.700-3.900-9S9.400 5.700 12 3z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
-    linkedin: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452z"/></svg>',
+  /** Inline SVG from web/icons.js (brand logos in their colour, UI icons in the current text colour). */
+  const ico = (key, size = 18) => {
+    const i = (window.ICONS || {})[key];
+    return i ? `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" fill="currentColor"${i.color ? ` style="color:${i.color}"` : ""}><path d="${i.d}"/></svg>` : "";
   };
 
   function authorFooter() {
     const a = SITE.author;
-    const link = (url, label, key) => (url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${icon[key] || icon.web}<span>${esc(label)}</span></a>` : "");
-    return `<footer class="site-foot" id="about">
-      <div class="about">
-        <span class="eyebrow-s">About the author</span>
-        <b class="who">${esc(a.name)} <span class="muted">· ${esc(a.role)} · <a href="${esc(a.github)}" target="_blank" rel="noopener noreferrer">@Vijay-puppala</a></span></b>
-        <p>${esc(a.summary)}</p>
-        <ul>${a.highlights.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>
-        <div class="skill-groups" aria-label="Tools and skills">${Object.entries(a.skills).map(([g, items]) => `<div><h4>${esc(g)}</h4>${items.map((t) => `<span class="chip-s">${esc(t)}</span>`).join("")}</div>`).join("")}</div>
-        <div class="contact-row"><span class="contact-chip">${icon.pin}${esc(a.location)}</span><a class="contact-chip" href="mailto:${esc(a.email)}">${icon.mail}${esc(a.email)}</a></div>
-        <span class="muted">Questions, ideas or fixes are welcome.</span>
+    const chip = (url, label, key) => (url ? `<a class="contact-chip" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${ico(key)}<span>${esc(label)}</span></a>` : "");
+    const accents = ["acc1", "acc2", "acc3", "acc4", "acc5", "acc6"];
+    const head = (key, text) => `<h3 class="a-h">${ico(key, 16)}${esc(text)}</h3>`;
+    return `<section class="author" id="about" aria-label="About the author">
+      <span class="kicker">${ico("shield", 16)}${esc(a.kicker)}</span>
+      <h2 class="a-name">${esc(a.name)}</h2>
+      <p class="a-role">${esc(a.role)} <span class="muted">· @${esc(a.handle)}</span></p>
+      <p class="a-sum">${esc(a.summary)}</p>
+      <div class="contact-row">
+        <span class="contact-chip">${ico("pin")}<span>${esc(a.location)}</span></span>
+        <a class="contact-chip" href="mailto:${esc(a.email)}">${ico("mail")}<span>${esc(a.email)}</span></a>
+        ${chip(a.linkedin, "LinkedIn", "linkedin")}${chip(a.github, "GitHub", "github")}${(a.websites || []).map((w) => chip(w.url, w.label, "web")).join("")}
       </div>
-      <nav aria-label="Author links">${link(a.github, "GitHub", "github")}${link(a.linkedin, "LinkedIn", "linkedin")}${(a.websites || []).map((w) => link(w.url, w.label, "web")).join("")}${link(SITE.repo, "Source", "github")}</nav>
-    </footer>`;
+
+      ${head("summary", "Professional summary")}
+      <p class="a-lead"><b>${esc(a.summaryTitle)}</b><br><span class="muted">${esc(a.summarySub)}</span></p>
+      <div class="sum-grid">${a.summaryPoints.map((p, i) => `<div class="sum" style="--acc: var(--${accents[i % 6]})"><span class="si">${ico(p.icon, 22)}</span><p>${p.html}</p></div>`).join("")}</div>
+
+      ${head("puzzle", "Core competencies")}
+      <div class="pillars">${a.pillars.map((p, i) => `<div class="pillar" style="--acc: var(--${accents[i % 6]})"><span class="pi">${ico(p.icon, 24)}</span><b>${esc(p.title)}</b><span>${esc(p.text)}</span></div>`).join("")}</div>
+
+      ${head("briefcase", "Professional experience")}
+      <p class="muted a-sub">${esc(a.experienceSub)}</p>
+      <div class="exp-list">${a.experience.map((e, i) => `<article class="exp-card" style="--acc: var(--${accents[i % 6]})">
+        <header>${ico(e.icon, 34)}<div><h4>${esc(e.company)}</h4><span class="muted">${ico("pin", 14)} ${esc(e.place)}</span></div></header>
+        <ol class="roles">${e.roles.map(([r, d]) => `<li><b>${esc(r)}</b><span class="date">${esc(d)}</span></li>`).join("")}</ol>
+        <div class="project"><b>${ico("folder", 16)} Project: ${esc(e.project)}</b><p>${esc(e.about)}</p>
+          <ul>${e.points.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>
+      </article>`).join("")}</div>
+
+      ${head("tools", "Technical skills")}
+      <div class="tool-groups">${a.toolGroups.map((g) => `<div class="tg"><h4>${ico(g.icon, 15)}${esc(g.title)}</h4><div class="tools">${g.tools.map(([n, k]) => `<span class="tool">${ico(k, 18)}${esc(n)}</span>`).join("")}</div></div>`).join("")}
+        <div class="tg"><h4>${ico("flask", 15)}Testing skills</h4><div class="tools">${a.testing.map((n) => `<span class="chip-s">${esc(n)}</span>`).join("")}</div></div></div>
+
+      ${head("school", "Education & recognition")}
+      <div class="edu">${ico(a.education.icon, 26)}<div><b>${esc(a.education.title)}</b><span>${esc(a.education.where)}</span><span class="muted">${esc(a.education.detail)}</span></div></div>
+      <div class="awards">${a.awards.map((x) => `<div class="award"><span class="ai">${ico(x.icon, 20)}</span><p>${x.html}</p></div>`).join("")}</div>
+    </section>`;
   }
 
   function renderHome() {
     const total = PROBLEMS.length;
-    const solvedN = PROBLEMS.filter((p) => state.solved.has(p.id)).length;
-    const last = BY_ID[store.get("qa.last", null)];
     const csEntries = (window.CHEATSHEET || []).reduce((n, s) => n + s.entries.length, 0);
-    const recent = store.get("qa.recent", []).filter((id) => BY_ID[id]).slice(0, 5);
     const sqlTotal = window.SQL_INDEX.patterns.reduce((n, p) => n + p.questions.length, 0);
-    const sqlDone = store.get("qa.sql.done", []).length;
-    const rows = CATS.map((c) => {
-      const all = PROBLEMS.filter((p) => p.category === c.id);
-      return { c, n: all.length, s: all.filter((p) => state.solved.has(p.id)).length };
-    });
     view.home.innerHTML = `
       <section class="hero">
         <span class="kicker"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 3l7 3v5c0 4.500-3 8.200-7 10-4-1.800-7-5.500-7-10V6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2.200 2.200L15.500 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Python · JavaScript · TypeScript · SQL</span>
         <h1>${esc(SITE.name)}</h1>
         <p class="tag">${esc(SITE.tagline)}</p>
-        <p>${total} interview problems, a ${csEntries}-entry cheat sheet and an in-browser playground for SDET and QA engineers,
-        in Python, JavaScript and TypeScript. Pick up where you left off, or jump straight to anything with <kbd>Ctrl</kbd> <kbd>K</kbd>.</p>
-        <div class="toolbar">
-          ${last ? `<a class="btn primary" href="#${last.id}">Continue: ${esc(last.title)}</a>` : `<a class="btn primary" href="#p001">Start with problem 1</a>`}
-          <a class="btn" href="#cheatsheet">Cheat sheet</a>
-          <a class="btn" href="#sql">SQL practice</a>
-          <a class="btn" href="#playground">Playground</a>
-        </div>
+        <p>${total} interview problems, a ${csEntries}-entry cheat sheet, ${sqlTotal} SQL questions and an in-browser playground for SDET and QA engineers.
+        Jump straight to anything with <kbd>Ctrl</kbd> <kbd>K</kbd>.</p>
         <div class="badge-row"><span class="pill cyan">${total} problems</span><span class="pill purple">${sqlTotal} SQL questions</span><span class="pill amber">${csEntries} cheat-sheet entries</span><span class="pill green">pytest &amp; pandas</span><span class="pill pink">Runs in your browser</span></div>
       </section>
 
-      <div class="stats">
-        <div class="stat"><b>${solvedN}<small class="muted" style="font-size:16px;font-weight:700"> / ${total}</small></b><span>Problems solved</span></div>
-        <div class="stat"><b>${Math.round((100 * solvedN) / total)}%</b><span>Complete</span></div>
-        <div class="stat"><b>${sqlDone}<small class="muted" style="font-size:16px;font-weight:700"> / ${sqlTotal}</small></b><span>SQL questions done</span></div>
-        <div class="stat"><b>${csEntries}</b><span>Cheat-sheet entries</span></div>
-      </div>
-
-      <div class="h2row"><h2>Progress by topic</h2><span class="muted">Click a topic to continue it</span></div>
-      <div>${rows.map(({ c, n, s }) => `<button class="cat-row" data-cat="${c.id}"><span><b>${esc(c.label)}</b></span>
-        <span class="bar"><i style="width:${(100 * s) / n}%"></i></span><span class="n">${s} / ${n}</span></button>`).join("")}
-        <a class="cat-row" href="#sql" data-sql="1"><span><b>SQL practice</b></span>
-        <span class="bar"><i style="width:${(100 * sqlDone) / sqlTotal}%"></i></span><span class="n">${sqlDone} / ${sqlTotal}</span></a></div>
-
-      <div class="h2row"><h2>Jump in</h2></div>
+      <div class="h2row"><h2>What you can do here</h2></div>
       <div class="quick">
+        <a class="qcard" href="#problems"><span class="ic">${ICONS.list}</span><div><b>Problems</b><span>${total} interview problems in Python, JavaScript and TypeScript, with hidden solutions</span></div></a>
         <a class="qcard" href="#cheatsheet"><span class="ic">${ICONS.book}</span><div><b>Cheat sheet</b><span>${csEntries} concepts and methods with runnable examples</span></div></a>
         <a class="qcard" href="#sql"><span class="ic">${ICONS.db}</span><div><b>SQL practice</b><span>${window.SQL_INDEX.patterns.length} patterns, ${sqlTotal} questions on a real Postgres in your browser</span></div></a>
         <a class="qcard" href="#playground"><span class="ic">${ICONS.term}</span><div><b>Playground</b><span>Run any Python, JavaScript or TypeScript program</span></div></a>
@@ -314,20 +312,43 @@
         <a class="qcard" href="#${firstOf("pytest").id}"><span class="ic">${ICONS.flask}</span><div><b>pytest scenarios</b><span>Fixtures, parametrize, mocking, page objects</span></div></a>
       </div>
 
+      ${authorFooter()}`;
+  }
+
+  /* Problems overview (#problems): progress lives here, not on Home */
+  function renderProblemsOverview() {
+    const total = PROBLEMS.length;
+    const solvedN = PROBLEMS.filter((p) => state.solved.has(p.id)).length;
+    const last = BY_ID[store.get("qa.last", null)];
+    const recent = store.get("qa.recent", []).filter((id) => BY_ID[id]).slice(0, 5);
+    const rows = CATS.map((c) => {
+      const all = PROBLEMS.filter((p) => p.category === c.id);
+      return { c, n: all.length, s: all.filter((p) => state.solved.has(p.id)).length };
+    });
+    view.problems.innerHTML = `
+      <div class="eyebrow-s">Problems</div>
+      <h1 class="title">Your progress</h1>
+      <div class="toolbar" style="margin:8px 0 4px">${last ? `<a class="btn primary" href="#${last.id}">Continue: ${esc(last.title)}</a>` : `<a class="btn primary" href="#p001">Start with problem 1</a>`}</div>
+      <div class="stats">
+        <div class="stat"><b>${solvedN}<small class="muted" style="font-size:16px;font-weight:700"> / ${total}</small></b><span>Problems solved</span></div>
+        <div class="stat"><b>${Math.round((100 * solvedN) / total)}%</b><span>Complete</span></div>
+        <div class="stat"><b>${total - solvedN}</b><span>Still to do</span></div>
+      </div>
+      <div class="h2row"><h2>Progress by topic</h2><span class="muted">Click a topic to continue it</span></div>
+      <div>${rows.map(({ c, n, s }) => `<button class="cat-row" data-cat="${c.id}"><span><b>${esc(c.label)}</b></span>
+        <span class="bar"><i style="width:${(100 * s) / n}%"></i></span><span class="n">${s} / ${n}</span></button>`).join("")}</div>
       ${recent.length ? `<div class="h2row"><h2>Recently solved</h2></div><div class="recent">${recent.map((id) => {
         const p = BY_ID[id];
         return `<a href="#${p.id}"><span class="num">${pad3(p.num)}</span><span>${esc(p.title)}</span><span class="ok">✓</span></a>`;
-      }).join("")}</div>` : ""}
-      ${authorFooter()}`;
+      }).join("")}</div>` : ""}`;
 
-    $$(".cat-row[data-cat]", view.home).forEach((b) => b.addEventListener("click", () => {
+    $$(".cat-row[data-cat]", view.problems).forEach((b) => b.addEventListener("click", () => {
       state.category = b.dataset.cat;
       renderChips();
       location.hash = firstOf(b.dataset.cat).id;
     }));
   }
 
-  /* ------------------------------------------------------- problems view */
   function renderProblem(p) {
     store.set("qa.last", p.id);
     const lang = effLang(p);
@@ -808,6 +829,14 @@
       document.title = `${p.title} · ${SITE.name}`;
       $("#sideSub").textContent = `${PROBLEMS.length} problems`;
       renderProblem(p);
+    } else if (state.view === "problems") {
+      document.title = `Problems · ${SITE.name}`;
+      $("#sideSub").textContent = `${PROBLEMS.length} problems`;
+      renderProblemsOverview();
+    } else if (state.view === "problems") {
+      document.title = `Problems · ${SITE.name}`;
+      $("#sideSub").textContent = `${PROBLEMS.length} problems`;
+      renderProblemsOverview();
     } else {
       document.title = `${SITE.name} · ${SITE.tagline}`;
       $("#sideSub").textContent = `${PROBLEMS.length} problems`;
@@ -823,6 +852,8 @@
     else if (head === "cheatsheet") state.view = "cheatsheet";
     else if (head === "about") state.view = "about";
     else if (head === "sql") { state.view = "sql"; state.sqlTail = tail || null; }
+    else if (head === "problems") { state.view = "problems"; state.current = null; }
+    else if (head === "problems") { state.view = "problems"; state.current = null; }
     else if (BY_ID[head]) { state.view = "problems"; state.current = head; }
     else { state.view = "home"; state.current = null; }
     state.token++;
@@ -837,14 +868,14 @@
 
   $$(".tab").forEach((t) => t.addEventListener("click", () => {
     const v = t.dataset.view;
-    location.hash = v === "problems" ? (state.current || store.get("qa.last", "p001")) : v;
+    location.hash = v;
   }));
   $("#brand").addEventListener("click", (e) => { e.preventDefault(); location.hash = "home"; if (state.view === "home") route(); });
   window.addEventListener("hashchange", route);
 
   (function sideCredit() {
     const a = SITE.author;
-    const l = (url, label, key) => (url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(label)}" title="${esc(label)}">${icon[key]}</a>` : "");
+    const l = (url, label, key) => (url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(label)}" title="${esc(label)}">${ico(key, 18)}</a>` : "");
     $("#sideCredit").innerHTML = `<a class="who" href="#about"><b>${esc(a.name)}</b><span>${esc(a.role)}</span></a>
       <span class="links">${l(a.github, "GitHub", "github")}${l(a.linkedin, "LinkedIn", "linkedin")}${(a.websites || []).slice(0, 1).map((w) => l(w.url, w.label, "web")).join("")}</span>`;
   })();

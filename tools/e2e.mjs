@@ -47,7 +47,7 @@ const check = async (name, fn) => {
 const eq = (a, b, msg) => { if (a !== b) throw new Error(`${msg || "assert"}: got ${JSON.stringify(a)} want ${JSON.stringify(b)}`); };
 const setCode = async (sel, code) => { await page.fill(sel, code); };
 
-await page.goto(base);
+await page.goto(base + "#problems");
 
 await check("loads with 330 problems and no console errors", async () => {
   await page.waitForSelector("#plist button");
@@ -283,12 +283,20 @@ await check("Playground: python asyncio.run(main()) prints its output", async ()
   await page.waitForFunction(() => document.querySelector("#pgOut")?.textContent.includes("ZeroDivisionError"), null, { timeout: 30000 });
 });
 
-await check("home dashboard: hero, stats and progress by topic", async () => {
+await check("home: options first, then the author; no sidebar or progress on Home; progress lives under Problems", async () => {
   await page.setViewportSize({ width: 1360, height: 860 });
   await page.goto(base + "#home");
   await page.waitForSelector(".hero");
   if (!(await page.textContent(".hero")).includes("SDET Interview Playground")) throw new Error("hero text missing");
-  eq(await page.locator(".stat").count(), 4, "stat tiles");
+  const order = await page.evaluate(() => document.querySelector("#viewHome .quick").getBoundingClientRect().top < document.querySelector("#viewHome .author").getBoundingClientRect().top);
+  eq(order, true, "options above the author section");
+  eq(await page.locator("#sidebar").isVisible(), false, "no sidebar on Home");
+  eq(await page.locator("#viewHome .stat, #viewHome .cat-row").count(), 0, "no progress widgets on Home");
+  eq(await page.locator("#viewHome .author").getByText("Source", { exact: true }).count(), 0, "no Source link");
+  await page.click('.tab[data-view="problems"]');
+  await page.waitForSelector("#viewProblems .stat");
+  eq(await page.locator("#sidebar").isVisible(), true, "sidebar on Problems");
+  eq(await page.locator("#viewProblems .stat").count(), 3, "stat tiles");
   eq(await page.locator(".cat-row[data-cat]").count(), 7, "topic rows");
   await page.click('.cat-row[data-cat="strings"]');
   await page.waitForSelector("#viewProblems:not([hidden]) h1.title");
@@ -527,14 +535,14 @@ await check("editor: syntax highlighting overlay follows the text (SQL, Python) 
 
 await check("site title and author links (GitHub, LinkedIn)", async () => {
   await page.goto(base + "#home");
-  await page.waitForSelector(".site-foot");
+  await page.waitForSelector(".author");
   if (!/SDET Interview Playground/.test(await page.title())) throw new Error("title: " + await page.title());
-  const hrefs = await page.$$eval(".site-foot nav a", (a) => a.map((x) => x.href));
+  const hrefs = await page.$$eval(".author a", (a) => a.map((x) => x.href));
   if (!hrefs.includes("https://github.com/Vijay-puppala")) throw new Error("GitHub link missing");
   if (!hrefs.includes("https://www.linkedin.com/in/vijayanand-puppala/")) throw new Error("LinkedIn link missing");
   for (const u of ["https://vijayanand-puppala-data-portfolio.vercel.app/", "https://vijayanand-puppala-data-portfolio.lovable.app/"]) if (!hrefs.includes(u)) throw new Error("website missing " + u);
-  if (!/Vijay-puppala/.test(await page.textContent(".site-foot"))) throw new Error("author credit missing");
-  if (!/Quality Engineering Manager/.test(await page.textContent(".site-foot"))) throw new Error("author role missing");
+  if (!/Vijay-puppala/.test(await page.textContent(".author"))) throw new Error("author credit missing");
+  if (!/Quality Engineering Manager/.test(await page.textContent(".author"))) throw new Error("author role missing");
 });
 
 await check("brand name top left, author credit in the sidebar, About page", async () => {
@@ -547,20 +555,23 @@ await check("brand name top left, author credit in the sidebar, About page", asy
   if (!/Vijayanand Puppala/.test(await page.textContent("#sideCredit"))) throw new Error("author missing in the sidebar");
   eq(await page.isVisible("#sideCredit"), true, "credit visible");
   await page.click("#sideCredit .who");
-  await page.waitForSelector("#viewAbout .site-foot");
+  await page.waitForSelector("#viewAbout .author");
   if (!/Quality Engineering Manager/.test(await page.textContent("#viewAbout"))) throw new Error("About page content missing");
   await page.goto(base + "#cheatsheet");
   await page.click(".about-btn");
-  await page.waitForSelector("#viewAbout .site-foot");
+  await page.waitForSelector("#viewAbout .author");
 });
 
-await check("home dashboard shows SQL progress", async () => {
+await check("author section: brand logos and icons, no Source link", async () => {
   await page.goto(base + "#home");
-  await page.waitForSelector('.cat-row[data-sql]');
-  if (!/SQL questions done/.test(await page.textContent(".stats"))) throw new Error("no SQL stat");
-  if (!/SQL practice/.test(await page.textContent(".quick"))) throw new Error("no SQL card");
-  await page.click('.cat-row[data-sql]');
-  await page.waitForSelector("#viewSql .hero");
+  await page.waitForSelector("#viewHome .author .pillar");
+  eq(await page.locator("#viewHome .author .pillar").count(), 9, "competency cards");
+  eq(await page.locator("#viewHome .author .exp-card").count(), 3, "employers");
+  if (!/Hitachi Vantara/.test(await page.textContent("#viewHome .author")) || !/Titan Awards/.test(await page.textContent("#viewHome .author"))) throw new Error("experience or awards missing");
+  eq((await page.locator("#viewHome .author .tool svg path").count()) >= 18, true, "tool logos");
+  if (/\bSource\b/.test(await page.textContent(".author"))) throw new Error("Source link still shown");
+  await page.click('.quick a[href="#sql"]');
+  await page.waitForSelector("#viewSql .hero, #viewSql .stats");
 });
 
 await check("mobile layout: menu opens the problem list", async () => {
