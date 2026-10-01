@@ -1,0 +1,21 @@
+{
+  "name": "interview-playground",
+  "version": "1.0.0",
+  "description": "330 SDET/QA interview programs in Python, JavaScript and TypeScript with an in-browser playground",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "start": "python3 -m http.server 8000 --directory web",
+    "build:data": "python3 tools/build_site.py",
+    "test": "python3 -m pytest -q",
+    "test:ts": "node tools/check_ts.mjs",
+    "typecheck": "tsc -p .",
+    "test:e2e": "node tools/e2e.mjs"
+  },
+  "devDependencies": {
+    "pyodide": "^0.26.4",
+    "typescript": "^5.4.5"
+  },
+  "private": true
+}
