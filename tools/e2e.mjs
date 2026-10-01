@@ -290,7 +290,7 @@ await check("home dashboard: hero, stats and progress by topic", async () => {
   await page.waitForSelector(".hero");
   if (!(await page.textContent(".hero")).includes("Welcome back")) throw new Error("hero text missing");
   eq(await page.locator(".stat").count(), 4, "stat tiles");
-  eq(await page.locator(".cat-row").count(), 7, "topic rows");
+  eq(await page.locator(".cat-row[data-cat]").count(), 7, "topic rows");
   await page.click('.cat-row[data-cat="strings"]');
   await page.waitForSelector("#viewProblems:not([hidden]) h1.title");
   if (!/^#p\d{3}$/.test(await page.evaluate(() => location.hash))) throw new Error("did not open a problem");
@@ -511,6 +511,31 @@ await check("SQL: tables page and quick search", async () => {
   await page.fill("#qsInput", "duplicate rows");
   if (!/Find Duplicate Rows/.test(await page.textContent("#qsList"))) throw new Error("SQL pattern not in quick search");
   await page.keyboard.press("Escape");
+});
+
+await check("editor: syntax highlighting overlay follows the text (SQL, Python) and stays aligned", async () => {
+  await page.goto(base + "#sql/schema");
+  await page.waitForSelector("#tryHost textarea");
+  await page.fill("#tryHost textarea", "SELECT COUNT(*) -- note\nFROM employees WHERE name = 'x';");
+  const kinds = await page.$$eval("#tryHost .ed-hl span", (els) => els.map((e) => e.className).join(" "));
+  for (const k of ["tok-k", "tok-f", "tok-c", "tok-s"]) if (!kinds.includes(k)) throw new Error("missing " + k + " in " + kinds);
+  const same = await page.evaluate(() => {
+    const ta = document.querySelector("#tryHost textarea"), hl = document.querySelector("#tryHost .ed-hl");
+    const a = ta.getBoundingClientRect(), b = hl.getBoundingClientRect();
+    return Math.abs(a.left - b.left) < 1 && Math.abs(a.top - b.top) < 1 && Math.abs(a.width - b.width) < 1;
+  });
+  eq(same, true, "overlay aligned with the textarea");
+  await page.goto(base + "#playground");
+  await page.waitForSelector(".ed-hl [class^=tok-]", { state: "attached" });
+});
+
+await check("home dashboard shows SQL progress", async () => {
+  await page.goto(base + "#home");
+  await page.waitForSelector('.cat-row[data-sql]');
+  if (!/SQL questions done/.test(await page.textContent(".stats"))) throw new Error("no SQL stat");
+  if (!/SQL practice/.test(await page.textContent(".quick"))) throw new Error("no SQL card");
+  await page.click('.cat-row[data-sql]');
+  await page.waitForSelector("#viewSql .hero");
 });
 
 await check("mobile layout: menu opens the problem list", async () => {
