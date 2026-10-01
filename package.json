@@ -15,6 +15,7 @@
     "test:cheatsheet": "python3 tools/cheatsheet.py --json && node tools/check_cheatsheet.mjs"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "pyodide": "^0.26.4",
     "typescript": "^5.4.5"
   },

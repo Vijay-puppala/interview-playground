@@ -25,6 +25,7 @@ from demos import DEMOS  # noqa: E402
 from playground._registry import discover  # noqa: E402
 from tools.cheatsheet import load as load_cheatsheet  # noqa: E402
 from tools.export_cases import export as export_cases  # noqa: E402
+from tools.sqlcontent import SQL_DIR, load_patterns, load_schema  # noqa: E402
 
 PREFIX = re.compile(r"\bp\d{3}_")
 PROG = re.compile(r"\bp\d{3}_\w+")
@@ -244,6 +245,31 @@ def write_index(problems):
 
 
 # --------------------------------------------------------------------- main ---
+def write_sql(out: Path) -> None:
+    """SQL tab data: a small index (loaded up front), one file per pattern (loaded on demand) and the
+    schema + seed script the in-browser Postgres starts from."""
+    patterns = load_patterns()
+    schema = load_schema()
+    sql_dir = out / "sql"
+    sql_dir.mkdir(exist_ok=True)
+    for f in sql_dir.glob("p*.js"):
+        f.unlink()
+    index = {
+        "categories": schema["categoryOrder"],
+        "tables": schema["tables"],
+        "dialectNote": schema["dialectNote"],
+        "patterns": [{k: p[k] for k in ("num", "slug", "title", "concept", "category", "tagline")}
+                     | {"questions": [{"id": q["id"], "difficulty": q["difficulty"]} for q in p["questions"]]}
+                     for p in patterns],
+    }
+    (out / "sql_index.js").write_text("window.SQL_INDEX = " + json.dumps(index, separators=(",", ":")) + ";\n")
+    setup = (SQL_DIR / "schema.sql").read_text() + "\n" + (SQL_DIR / "seed.sql").read_text()
+    (out / "sql_setup.js").write_text("window.SQL_SETUP = " + json.dumps(setup) + ";\n")
+    for p in patterns:
+        (sql_dir / f"p{p['num']:02d}.js").write_text(
+            f"(window.SQL_PATTERNS = window.SQL_PATTERNS || {{}})[{p['num']}] = " + json.dumps(p, separators=(",", ":")) + ";\n")
+
+
 def main():
     cases = export_cases()
     programs = discover()
@@ -359,6 +385,7 @@ def main():
              for sec in load_cheatsheet()]
     (out / "cheatsheet.js").write_text("window.CHEATSHEET = " + json.dumps(cheat, separators=(",", ":")) + ";\n")
     (out / "bundles.js").write_text("window.BUNDLES = " + json.dumps(bundles, separators=(",", ":")) + ";\n")
+    write_sql(out)
     write_index(problems)
     counts = {m["label"]: m["count"] for m in meta}
     print(f"{len(problems)} problems:", counts)

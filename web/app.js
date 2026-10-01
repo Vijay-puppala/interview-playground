@@ -30,7 +30,8 @@
     token: 0,
   };
 
-  const view = { home: $("#viewHome"), problems: $("#viewProblems"), cheatsheet: $("#viewCheatsheet"), playground: $("#viewPlayground") };
+  let sqlTab = null;   // created once the helpers below exist
+  const view = { home: $("#viewHome"), problems: $("#viewProblems"), cheatsheet: $("#viewCheatsheet"), sql: $("#viewSql"), playground: $("#viewPlayground") };
 
   /* ------------------------------------------------------------- helpers */
   function pyRepr(v) {
@@ -662,6 +663,7 @@
     const pages = [
       { kind: "Page", title: "Home", sub: "Dashboard and progress", go: "#home" },
       { kind: "Page", title: "Cheat sheet", sub: "Concepts and methods with examples", go: "#cheatsheet" },
+      { kind: "Page", title: "SQL practice", sub: "50 patterns on a real Postgres in your browser", go: "#sql" },
       { kind: "Page", title: "Playground", sub: "Run any program in your browser", go: "#playground" },
     ];
     const commands = [
@@ -670,8 +672,9 @@
       ...Object.entries(LANGS).map(([k, v]) => ({ kind: "Command", title: `Use ${v}`, sub: "Switch the language", run: () => setLang(k) })),
     ];
     const problems = PROBLEMS.map((p) => ({ kind: "Problem", title: p.title, sub: `#${pad3(p.num)} · ${CAT_LABEL[p.category]}`, go: `#${p.id}`, hay: `${p.title} ${p.fn.py} ${pad3(p.num)} ${CAT_LABEL[p.category]}` }));
+    const sqls = window.SQL_INDEX.patterns.map((p) => ({ kind: "SQL", title: p.title, sub: `SQL #${pad3(p.num).slice(1)} · ${p.category}`, go: `#sql/${p.slug}`, hay: `sql ${p.title} ${p.concept} ${p.category} ${p.tagline}` }));
     const cheats = CS_DATA.flatMap((s) => s.entries.map((e) => ({ kind: "Cheat", title: e.title, sub: `Cheat sheet · ${s.title}`, go: `#cheatsheet/${slug(e.title)}`, hay: `${e.title} ${s.title} ${e.desc}` })));
-    QS.index = [...pages, ...commands, ...problems, ...cheats].map((it) => ({ ...it, hay: (it.hay || it.title + " " + it.sub).toLowerCase() }));
+    QS.index = [...pages, ...commands, ...problems, ...sqls, ...cheats].map((it) => ({ ...it, hay: (it.hay || it.title + " " + it.sub).toLowerCase() }));
     return QS.index;
   }
   function qsSearch(q) {
@@ -729,8 +732,8 @@
   });
 
   /* ---------------------------------------------------------------- router */
-  const SIDE = { home: ["Problems", "Problems"], problems: ["Problems", "Problems"], cheatsheet: ["Cheat", "Cheat sheet"], playground: ["Play", "Playground"] };
-  const TAB_FOR = { home: "home", problems: "problems", cheatsheet: "cheatsheet", playground: "playground" };
+  const SIDE = { home: ["Problems", "Problems"], problems: ["Problems", "Problems"], cheatsheet: ["Cheat", "Cheat sheet"], sql: ["Sql", "SQL practice"], playground: ["Play", "Playground"] };
+  const TAB_FOR = { home: "home", problems: "problems", cheatsheet: "cheatsheet", sql: "sql", playground: "playground" };
 
   function render() {
     syncLangUi();
@@ -742,7 +745,7 @@
     });
     Object.entries(view).forEach(([k, el]) => { el.hidden = k !== state.view; });
     const [ctx, title] = SIDE[state.view];
-    ["Problems", "Cheat", "Play"].forEach((c) => { $("#ctx" + c).hidden = c !== ctx; });
+    ["Problems", "Cheat", "Sql", "Play"].forEach((c) => { $("#ctx" + c).hidden = c !== ctx; });
     $("#sideTitle").textContent = title;
     state.revealed = false;
 
@@ -750,6 +753,9 @@
       document.title = "Playground · QA Interview Playground";
       $("#sideSub").textContent = ext[state.lang];
       renderPlayground();
+    } else if (state.view === "sql") {
+      $("#sideSub").textContent = `${sqlTab.IDX.patterns.length} patterns`;
+      sqlTab.render(view.sql, state.sqlTail);
     } else if (state.view === "cheatsheet") {
       document.title = "Cheat sheet · QA Interview Playground";
       renderCheatsheet();
@@ -771,6 +777,7 @@
     const [head, tail] = location.hash.replace(/^#/, "").split("/");
     if (head === "playground") state.view = "playground";
     else if (head === "cheatsheet") state.view = "cheatsheet";
+    else if (head === "sql") { state.view = "sql"; state.sqlTail = tail || null; }
     else if (BY_ID[head]) { state.view = "problems"; state.current = head; }
     else { state.view = "home"; state.current = null; }
     state.token++;
@@ -790,6 +797,7 @@
   $("#brand").addEventListener("click", (e) => { e.preventDefault(); location.hash = "home"; if (state.view === "home") route(); });
   window.addEventListener("hashchange", route);
 
+  sqlTab = window.SqlTab({ $, $$, esc, store, createEditor, closeMenu, Runner });
   renderChips();
   updateProgress();
   route();
