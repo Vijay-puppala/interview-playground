@@ -494,3 +494,14 @@ body[data-view="home"] .menu-btn, body[data-view="about"] .menu-btn { display: n
 .edu div { display: flex; flex-direction: column; color: var(--text); } .edu span { font-size: 13.5px; }
 .awards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; margin-top: 10px; }
 .award { display: flex; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-subtle); } .award .ai { color: var(--acc3); flex: none; } .award p { margin: 0; font-size: 14.5px; line-height: 1.5; }
+
+/* ---- author: career (companies and positions) --------------------------------------------------- */
+.career { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.job { display: flex; gap: 14px; padding: 16px; border: 1px solid var(--border); border-top: 2px solid var(--acc, var(--acc1)); border-radius: var(--radius); background: var(--bg-subtle); }
+.job .logo-b { flex: none; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 12px; border: 1px solid var(--border-strong); background: var(--surface); }
+.job-body { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
+.job h4 { margin: 0; font-size: 16.5px; letter-spacing: -.02em; line-height: 1.25; }
+.job .loc { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+.job .pos { margin-top: 6px; font-size: 14.5px; line-height: 1.35; }
+.job .date { margin-top: 6px; padding: 2px 12px; border: 1px solid var(--border-strong); border-radius: 999px; font-size: 12.5px; color: var(--muted); }
+.job .date.now { border-color: var(--acc1); color: var(--link); }

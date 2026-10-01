@@ -26,6 +26,11 @@ window.SITE = {
       { icon: "robotx", html: "Hands-on functional, regression, E2E, API, performance, scalability, exploratory and data-validation testing." },
       { icon: "cloudcheck", html: "Proficient with <b>AWS, Azure, Docker, Kubernetes</b>, Oracle, PostgreSQL, Snowflake, HP ALM, Jira, Confluence and Jenkins." },
     ],
+    career: [
+      { company: "Hitachi Vantara India Pvt. Ltd.", icon: "hitachi", place: "Hyderabad, India", position: "Software Development Engineer Test Engineering Manager M3", dates: "Jan 2022 – Present", current: true },
+      { company: "Oracle India Pvt. Ltd.", icon: "oracle", place: "Hyderabad, India", position: "Principal Quality Assurance Engineer", dates: "Jun 2018 – Jan 2022" },
+      { company: "United Technologies Corporation", icon: "utc", place: "Hyderabad, India", position: "Senior Engineer", dates: "Jul 2011 – Jun 2018" },
+    ],
     pillars: [
       { icon: "leader", title: "Quality Engineering Leadership", text: "Team direction, mentoring and release ownership." },
       { icon: "strategy", title: "Test Strategy, Planning & Execution", text: "End-to-end SDLC ownership from planning to sign-off." },

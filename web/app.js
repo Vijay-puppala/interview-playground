@@ -269,6 +269,13 @@
       ${head("puzzle", "Core competencies")}
       <div class="pillars">${a.pillars.map((p, i) => `<div class="pillar" style="--acc: var(--${accents[i % 6]})"><span class="pi">${ico(p.icon, 24)}</span><b>${esc(p.title)}</b><span>${esc(p.text)}</span></div>`).join("")}</div>
 
+      ${head("briefcase", "Career")}
+      <div class="career">${a.career.map((c, i) => `<article class="job" style="--acc: var(--${accents[i % 6]})">
+        <span class="logo-b">${ico(c.icon, 30)}</span>
+        <div class="job-body"><h4>${esc(c.company)}</h4><span class="muted loc">${ico("pin", 14)} ${esc(c.place)}</span>
+          <b class="pos">${esc(c.position)}</b><span class="date${c.current ? " now" : ""}">${esc(c.dates)}</span></div>
+      </article>`).join("")}</div>
+
       ${head("tools", "Technical skills")}
       <div class="tool-groups">${a.toolGroups.map((g) => `<div class="tg"><h4>${ico(g.icon, 15)}${esc(g.title)}</h4><div class="tools">${g.tools.map(([n, k]) => `<span class="tool">${ico(k, 18)}${esc(n)}</span>`).join("")}</div></div>`).join("")}</div>
 
