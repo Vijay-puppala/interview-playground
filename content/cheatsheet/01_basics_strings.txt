@@ -1,0 +1,178 @@
+@@ Basics
+
+@@@ Variables and types
+Python is dynamically typed, JavaScript too; TypeScript adds static types that are checked before the code runs.
+@py
+name = "Vijay"
+age = 30
+pi = 3.14
+ok = True
+print(type(name).__name__, type(age).__name__, type(pi).__name__, type(ok).__name__)
+=> str int float bool
+@js
+const name = "Vijay";   // const: cannot be reassigned
+let age = 30;           // let: can be reassigned
+const pi = 3.14;
+const ok = true;
+console.log(typeof name, typeof age, typeof pi, typeof ok);
+=> string number number boolean
+@ts
+const name: string = "Vijay";
+let age: number = 30;
+const ok: boolean = true;
+console.log(typeof name, typeof age, typeof ok);
+=> string number boolean
+
+@@@ Type conversion
+Convert between strings, numbers and booleans explicitly.
+@py
+print(int("42") + 1, float("3.5"), str(7) + "!", bool(0), bool("a"), list("abc"))
+=> 43 3.5 7! False True ['a', 'b', 'c']
+@js
+console.log(parseInt("42") + 1, parseFloat("3.5"), String(7) + "!", Boolean(0), Boolean("a"), JSON.stringify([..."abc"]));
+=> 43 3.5 7! false true ["a","b","c"]
+
+@@@ Truthy and falsy values
+Know what counts as "false" in a condition.
+@py
+print(bool([]), bool(""), bool(0), bool(None), bool([0]))
+=> False False False False True
+@js
+console.log(Boolean([]), Boolean(""), Boolean(0), Boolean(null), Boolean([0]));
+=> true false false false true
+! In JavaScript an empty array [] is truthy. In Python it is falsy.
+
+@@@ Equality gotchas
+Compare values carefully; JavaScript has two equality operators.
+@py
+x = None
+print(x is None, 0 == False, 1 == 1.0, [1, 2] == [1, 2], [1, 2] is [1, 2])
+=> True True True True False
+@js
+console.log(null === null, 0 == false, 0 === false, 1 === 1.0, NaN === NaN);
+=> true true false true false
+! In JavaScript always use === (strict equality). NaN is never equal to itself: use Number.isNaN(x).
+
+@@@ Ternary, defaults and short-circuit
+Pick a value inline, or fall back to a default.
+@py
+x = 7
+label = "big" if x > 5 else "small"
+name = "" or "default"          # falls back for any falsy value
+print(label, name)
+=> big default
+@js
+const x = 7;
+const label = x > 5 ? "big" : "small";
+const name = "" || "default";   // falls back for any falsy value
+const v = null ?? "fallback";   // falls back only for null / undefined
+console.log(label, name, v);
+=> big default fallback
+
+@@@ Constants and naming
+Naming conventions differ: snake_case in Python, camelCase in JavaScript / TypeScript.
+@py
+MAX_RETRIES = 3          # constants are UPPER_SNAKE by convention only
+user_name = "vijay"
+print(MAX_RETRIES, user_name)
+=> 3 vijay
+@js
+const MAX_RETRIES = 3;
+const userName = "vijay";
+console.log(MAX_RETRIES, userName);
+=> 3 vijay
+@ts
+const MAX_RETRIES = 3 as const;   // literal type 3, cannot change
+const userName: string = "vijay";
+console.log(MAX_RETRIES, userName);
+=> 3 vijay
+
+@@ Strings
+
+@@@ Indexing and slicing
+Grab characters and sub-strings. Negative indexes count from the end in Python; use at() in JavaScript.
+@py
+s = "automation"
+print(s[0], s[-1], s[2:5], s[::-1])
+=> a n tom noitamotua
+@js
+const s = "automation";
+console.log(s[0], s.at(-1), s.slice(2, 5), [...s].reverse().join(""));
+=> a n tom noitamotua
+
+@@@ Split, join and strip
+Break text into pieces, clean it, and glue it back together.
+@py
+parts = [p.strip() for p in " a, b ,c ".split(",")]
+print(parts, "-".join(parts))
+=> ['a', 'b', 'c'] a-b-c
+@js
+const parts = " a, b ,c ".split(",").map((p) => p.trim());
+console.log(JSON.stringify(parts), parts.join("-"));
+=> ["a","b","c"] a-b-c
+
+@@@ Search and replace
+Find, count and replace sub-strings.
+@py
+s = "qa engineer, qa lead"
+print(s.find("qa"), s.rfind("qa"), s.count("qa"), s.replace("qa", "SDET"), "lead" in s, s.startswith("qa"))
+=> 0 13 2 SDET engineer, SDET lead True True
+@js
+const s = "qa engineer, qa lead";
+console.log(s.indexOf("qa"), s.lastIndexOf("qa"), s.split("qa").length - 1, s.replaceAll("qa", "SDET"), s.includes("lead"), s.startsWith("qa"));
+=> 0 13 2 SDET engineer, SDET lead true true
+! find() / indexOf() return -1 when nothing is found. Python's index() raises ValueError instead.
+
+@@@ Case and character checks
+@py
+print("hello World".upper(), "hello world".title(), "hello World".capitalize(), "abc".isalpha(), "123".isdigit())
+=> HELLO WORLD Hello World Hello world True True
+@js
+const cap = (w) => w[0].toUpperCase() + w.slice(1).toLowerCase();
+console.log("hello World".toUpperCase(), "hello world".split(" ").map(cap).join(" "), cap("hello World"), /^[a-z]+$/i.test("abc"), /^\d+$/.test("123"));
+=> HELLO WORLD Hello World Hello world true true
+
+@@@ Formatting
+Insert values into text and format numbers.
+@py
+name, score = "Vijay", 92.456
+print(f"{name} scored {score:.1f}")
+print("{:>8}|".format("hi"))
+=> Vijay scored 92.5
+=>       hi|
+@js
+const name = "Vijay", score = 92.456;
+console.log(`${name} scored ${score.toFixed(1)}`);
+console.log("hi".padStart(8) + "|");
+=> Vijay scored 92.5
+=>       hi|
+
+@@@ Padding and repeating
+@py
+print("7".zfill(3), "ab".ljust(5, ".") + "|", "-" * 5)
+=> 007 ab...| -----
+@js
+console.log("7".padStart(3, "0"), "ab".padEnd(5, ".") + "|", "-".repeat(5));
+=> 007 ab...| -----
+
+@@@ Multi-line and raw strings
+@py
+text = "a\nb\nc"
+print(text.splitlines(), r"C:\temp\new")
+=> ['a', 'b', 'c'] C:\temp\new
+@js
+const text = "a\nb\nc";
+console.log(JSON.stringify(text.split("\n")), String.raw`C:\temp\new`);
+=> ["a","b","c"] C:\temp\new
+
+@@@ Counting characters
+Count how often each character appears (a classic interview warm-up).
+@py
+from collections import Counter
+print(dict(Counter("hello")))
+=> {'h': 1, 'e': 1, 'l': 2, 'o': 1}
+@js
+const counts = {};
+for (const ch of "hello") counts[ch] = (counts[ch] ?? 0) + 1;
+console.log(JSON.stringify(counts));
+=> {"h":1,"e":1,"l":2,"o":1}

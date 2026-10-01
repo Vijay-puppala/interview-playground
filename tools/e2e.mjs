@@ -195,6 +195,96 @@ await check("Playground: Stop terminates an infinite loop", async () => {
   await page.waitForFunction(() => document.querySelector("#pgOut")?.textContent.includes("alive"), null, { timeout: 15000 });
 });
 
+const setLang = async (l) => { await page.click(`#langSeg [data-lang="${l}"]`); };
+const runCard = async (key, timeout = 60000) => {
+  const card = page.locator(`.cs-entry[data-key="${key}"]`);
+  await card.scrollIntoViewIfNeeded();
+  await card.locator('[data-act="run"]').click();
+  await page.waitForFunction((k) => /matches/.test(document.querySelector(`.cs-entry[data-key="${k}"] .cs-result`)?.textContent || ""), key, { timeout });
+};
+
+await check("cheat sheet: lists every entry and follows the language switch", async () => {
+  await page.goto(base + "#cheatsheet");
+  await setLang("py");
+  await page.waitForSelector(".cs-entry");
+  eq(await page.locator(".cs-entry").count(), 111, "entries");
+  if (!(await page.textContent('.cs-entry[data-key="variables-and-types"] pre.code')).includes("type(name).__name__")) throw new Error("python code missing");
+  await setLang("js");
+  if (!(await page.textContent('.cs-entry[data-key="variables-and-types"] pre.code')).includes("typeof")) throw new Error("javascript code missing");
+});
+
+await check("cheat sheet: search and section filter", async () => {
+  await setLang("py");
+  await page.fill("#csSearch", "asyncio");
+  await page.waitForFunction(() => document.querySelectorAll(".cs-entry").length >= 3);
+  await page.fill("#csSearch", "zzz-no-such-thing");
+  await page.waitForFunction(() => /Nothing matches/.test(document.querySelector("#csBody")?.textContent || ""));
+  await page.fill("#csSearch", "");
+  await page.click('#csChips [data-sec="strings"]');
+  await page.waitForFunction(() => document.querySelectorAll(".cs-entry").length === 8);
+  eq(await page.locator(".cs-section").count(), 1, "one section heading");
+  await page.click('#csChips [data-sec="all"]');
+  await page.waitForFunction(() => document.querySelectorAll(".cs-entry").length === 111);
+});
+
+await check("cheat sheet: run a Python example", async () => {
+  await runCard("variables-and-types");
+});
+
+await check("cheat sheet: asyncio.run() works in the browser runner", async () => {
+  await runCard("timeouts");
+});
+
+await check("cheat sheet: JavaScript example with top-level await", async () => {
+  await setLang("js");
+  await page.waitForSelector('.cs-entry[data-key="timeouts"]');
+  await runCard("timeouts");
+});
+
+await check("cheat sheet: TypeScript has its own version and a JS fallback badge", async () => {
+  await setLang("ts");
+  await page.waitForSelector('.cs-entry[data-key="generics"]');
+  if (!(await page.textContent('.cs-entry[data-key="generics"] pre.code')).includes("<T>")) throw new Error("typed generics missing");
+  eq(await page.locator('.cs-entry[data-key="generics"] .badge').count(), 0, "no fallback badge on a TS-specific entry");
+  if (!(await page.textContent('.cs-entry[data-key="truthy-and-falsy-values"] .badge')).includes("same as JavaScript")) throw new Error("fallback badge missing");
+  await runCard("generics");
+  await runCard("truthy-and-falsy-values");
+});
+
+await check("cheat sheet: view-only entries cannot be run", async () => {
+  await page.fill("#csSearch", "playwright");
+  try {
+    await page.waitForSelector('.cs-entry[data-key="browser-test-with-playwright"]');
+    const card = page.locator('.cs-entry[data-key="browser-test-with-playwright"]');
+    if (!(await card.textContent()).includes("view only")) throw new Error("view only badge missing");
+    eq(await card.locator('[data-act="run"]').count(), 0, "run button");
+    eq(await card.locator('[data-act="play"]').count(), 0, "open-in-playground button");
+  } finally {
+    await page.fill("#csSearch", "");   // never leave the filter on, or later tests cannot find their cards
+  }
+});
+
+await check("cheat sheet: Open in Playground loads the example", async () => {
+  await setLang("py");
+  await page.waitForSelector('.cs-entry[data-key="variables-and-types"]');
+  await page.locator('.cs-entry[data-key="variables-and-types"] [data-act="play"]').click();
+  await page.waitForSelector("#pgRun");
+  if (!(await page.inputValue("#pgEditor textarea")).includes("type(name).__name__")) throw new Error("example not loaded into the playground");
+  await page.click("#pgRun");
+  await page.waitForFunction(() => document.querySelector("#pgOut")?.textContent.includes("str int float bool"), null, { timeout: 30000 });
+});
+
+await check("Playground: python asyncio.run(main()) prints its output", async () => {
+  await page.goto(base + "#playground");
+  await page.waitForSelector("#pgRun");
+  await setCode("#pgEditor textarea", "import asyncio\nasync def main():\n    await asyncio.sleep(0.01)\n    print('async done')\nasyncio.run(main())");
+  await page.click("#pgRun");
+  await page.waitForFunction(() => document.querySelector("#pgOut")?.textContent.includes("async done"), null, { timeout: 30000 });
+  await setCode("#pgEditor textarea", "import asyncio\nasync def main():\n    return 1 / 0\nasyncio.run(main())");
+  await page.click("#pgRun");
+  await page.waitForFunction(() => document.querySelector("#pgOut")?.textContent.includes("ZeroDivisionError"), null, { timeout: 30000 });
+});
+
 await check("mobile layout: menu opens the problem list", async () => {
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto(base + "#p002");

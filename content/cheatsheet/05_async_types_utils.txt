@@ -1,0 +1,359 @@
+@@ Async and concurrency
+
+@@@ async / await and running tasks together
+Wait for several slow operations (API calls, page loads) at the same time.
+@py
+import asyncio
+
+async def fetch(n):
+    await asyncio.sleep(0.01)
+    return n * 2
+
+async def main():
+    print(await asyncio.gather(fetch(1), fetch(2)))
+
+asyncio.run(main())
+=> [2, 4]
+@js
+const fetchN = async (n) => {
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  return n * 2;
+};
+console.log(JSON.stringify(await Promise.all([fetchN(1), fetchN(2)])));
+=> [2,4]
+! The browser cannot block, so this page's runner adapts asyncio.run() for you. In a real script it works exactly as written.
+
+@@@ Timeouts
+Give up on an operation that takes too long.
+@py
+import asyncio
+
+async def slow():
+    await asyncio.sleep(1)
+
+async def main():
+    try:
+        await asyncio.wait_for(slow(), timeout=0.01)
+    except asyncio.TimeoutError:
+        print("timeout")
+
+asyncio.run(main())
+=> timeout
+@js
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const withTimeout = (p, ms) =>
+  Promise.race([p, new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms))]);
+try {
+  await withTimeout(sleep(1000), 10);
+} catch (e) {
+  console.log(e.message);
+}
+=> timeout
+
+@@@ Collect results even when some fail
+@py
+import asyncio
+
+async def ok():
+    return "ok"
+
+async def bad():
+    raise ValueError("boom")
+
+async def main():
+    results = await asyncio.gather(ok(), bad(), return_exceptions=True)
+    print([type(r).__name__ if isinstance(r, Exception) else r for r in results])
+
+asyncio.run(main())
+=> ['ok', 'ValueError']
+@js
+const results = await Promise.allSettled([Promise.resolve("ok"), Promise.reject(new Error("boom"))]);
+console.log(JSON.stringify(results.map((r) => (r.status === "fulfilled" ? r.value : "Error"))));
+=> ["ok","Error"]
+
+@@@ Poll until a condition is true (explicit wait)
+The idea behind every Selenium / Playwright wait: check repeatedly, give up after a deadline.
+@py
+import time
+
+attempts = {"n": 0}
+
+def ready():
+    attempts["n"] += 1
+    return attempts["n"] >= 3
+
+deadline = time.monotonic() + 1
+while not ready():
+    if time.monotonic() > deadline:
+        raise TimeoutError("not ready")
+    time.sleep(0.01)
+print("ready after", attempts["n"], "tries")
+=> ready after 3 tries
+@js
+let attempts = 0;
+const ready = () => ++attempts >= 3;
+const deadline = Date.now() + 1000;
+while (!ready()) {
+  if (Date.now() > deadline) throw new Error("not ready");
+  await new Promise((resolve) => setTimeout(resolve, 10));
+}
+console.log("ready after", attempts, "tries");
+=> ready after 3 tries
+! Prefer waiting for a condition over a fixed sleep: fixed sleeps make tests slow and flaky.
+
+@@@ Run work in parallel threads
+@py!
+from concurrent.futures import ThreadPoolExecutor
+
+def check(url):
+    return url.upper()
+
+with ThreadPoolExecutor(max_workers=4) as pool:
+    print(list(pool.map(check, ["a", "b", "c"])))   # ['A', 'B', 'C']
+@js
+const check = async (url) => url.toUpperCase();
+console.log(JSON.stringify(await Promise.all(["a", "b", "c"].map(check))));
+=> ["A","B","C"]
+
+@@ Types and typing
+
+@@@ Type annotations
+Python hints and TypeScript types describe the data; tools check them before the code runs.
+@py
+def add(a: int, b: int) -> int:
+    return a + b
+
+print(add(2, 3))
+=> 5
+@js
+/**
+ * @param {number} a
+ * @param {number} b
+ * @returns {number}
+ */
+function add(a, b) {
+  return a + b;
+}
+console.log(add(2, 3));
+=> 5
+@ts
+function add(a: number, b: number): number {
+  return a + b;
+}
+console.log(add(2, 3));
+=> 5
+! Python ignores type hints at run time: use mypy or pyright to check them.
+
+@@@ Union and optional types
+A value that may be missing.
+@py
+def label(x: int | None) -> str:
+    return "none" if x is None else str(x)
+
+print(label(None), label(5))
+=> none 5
+@js
+const label = (x) => x ?? "none";
+console.log(label(null), label(5));
+=> none 5
+@ts
+function label(x: number | null): string {
+  return x === null ? "none" : String(x);
+}
+console.log(label(null), label(5));
+=> none 5
+
+@@@ Typed dictionaries and interfaces
+@py
+from typing import TypedDict
+
+class User(TypedDict):
+    id: int
+    name: str
+
+u: User = {"id": 1, "name": "Vijay"}
+print(u["name"])
+=> Vijay
+@js
+/** @typedef {{ id: number, name: string }} User */
+/** @type {User} */
+const u = { id: 1, name: "Vijay" };
+console.log(u.name);
+=> Vijay
+@ts
+interface User {
+  id: number;
+  name: string;
+  email?: string;   // optional field
+}
+const u: User = { id: 1, name: "Vijay" };
+console.log(u.name);
+=> Vijay
+
+@@@ Generics
+One function that keeps the type of whatever you give it.
+@py
+from typing import TypeVar
+
+T = TypeVar("T")
+
+def first(items: list[T]) -> T | None:
+    return items[0] if items else None
+
+print(first([3, 4]), first([]))
+=> 3 None
+@js
+const first = (items) => (items.length ? items[0] : null);
+console.log(first([3, 4]), first([]));
+=> 3 null
+@ts
+function first<T>(items: T[]): T | undefined {
+  return items[0];
+}
+console.log(first([3, 4]), first<string>([]));
+=> 3 undefined
+
+@@@ Enums and fixed choices
+@py
+from enum import Enum
+
+class Status(Enum):
+    PASS = "pass"
+    FAIL = "fail"
+
+print(Status("pass"), Status.FAIL.value)
+=> Status.PASS fail
+@js
+const Status = Object.freeze({ PASS: "pass", FAIL: "fail" });
+console.log(Status.PASS, Object.values(Status).includes("fail"));
+=> pass true
+@ts
+type Status = "pass" | "fail";              // literal union: the usual choice in TypeScript
+enum Level { Low, High }                    // numeric enum
+
+const s: Status = "pass";
+console.log(s, Level.High, Level[0]);
+=> pass 1 Low
+
+@@@ Narrowing types
+Check the type, then use the value safely.
+@py
+def size(x):
+    return len(x) if isinstance(x, (str, list)) else x
+
+print(size("abc"), size([1, 2]), size(5))
+=> 3 2 5
+@js
+const size = (x) => (typeof x === "string" || Array.isArray(x) ? x.length : x);
+console.log(size("abc"), size([1, 2]), size(5));
+=> 3 2 5
+@ts
+function size(x: string | number[] | number): number {
+  if (typeof x === "number") return x;   // narrowed to number here
+  return x.length;                       // string | number[] both have length
+}
+console.log(size("abc"), size([1, 2]), size(5));
+=> 3 2 5
+
+@@@ Pick, omit and partial updates
+@py
+user = {"id": 1, "name": "Vijay", "age": 30}
+picked = {k: user[k] for k in ("id", "name")}
+omitted = {k: v for k, v in user.items() if k != "age"}
+print(picked, omitted == picked)
+=> {'id': 1, 'name': 'Vijay'} True
+@js
+const user = { id: 1, name: "Vijay", age: 30 };
+const { id, name } = user;                 // pick
+const { age, ...omitted } = user;          // omit one field
+console.log(JSON.stringify({ id, name }), JSON.stringify(omitted));
+=> {"id":1,"name":"Vijay"} {"id":1,"name":"Vijay"}
+@ts
+interface User { id: number; name: string; age: number }
+type Public = Pick<User, "id" | "name">;       // keep some fields
+type NoAge = Omit<User, "age">;                // drop a field
+type Patch = Partial<User>;                    // every field optional
+const patch: Patch = { name: "QA" };
+const pub: Public = { id: 1, name: "Vijay" };
+console.log(JSON.stringify(patch), JSON.stringify(pub));
+=> {"name":"QA"} {"id":1,"name":"Vijay"}
+
+@@ Math and utilities
+
+@@@ Numbers and rounding
+@py
+import math
+print(math.floor(2.7), math.ceil(2.1), round(2.567, 2), abs(-3), 2 ** 10, 7 // 2, 7 % 3, divmod(7, 2))
+=> 2 3 2.57 3 1024 3 1 (3, 1)
+@js
+console.log(Math.floor(2.7), Math.ceil(2.1), (2.567).toFixed(2), Math.abs(-3), 2 ** 10, Math.floor(7 / 2), 7 % 3, JSON.stringify([Math.floor(7 / 2), 7 % 2]));
+=> 2 3 2.57 3 1024 3 1 [3,1]
+
+@@@ Floating point comparison
+@py
+import math
+print(0.1 + 0.2, math.isclose(0.1 + 0.2, 0.3))
+=> 0.30000000000000004 True
+@js
+console.log(0.1 + 0.2, Math.abs(0.1 + 0.2 - 0.3) < Number.EPSILON);
+=> 0.30000000000000004 true
+! Never compare floats with ==. Use math.isclose (Python), a tolerance (JavaScript) or pytest.approx in tests.
+
+@@@ Seeded random test data
+A fixed seed makes "random" data reproducible, so a failing test can be replayed.
+@py
+import random
+random.seed(42)
+print(random.sample(range(10), 3), random.randint(1, 100))
+=> [1, 0, 4] 32
+@js
+function mulberry32(seed) {     // tiny seeded generator (JavaScript has no built-in one)
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rand = mulberry32(42);
+console.log(Math.floor(rand() * 100), Math.floor(rand() * 100), Math.floor(rand() * 100));
+=> 60 44 85
+! The same seed gives different numbers in different languages: the guarantee is repeatability within one language.
+
+@@@ Combinations for test matrices
+Every browser x OS x user-role combination.
+@py
+from itertools import product, combinations
+print(list(product("ab", [1, 2])))
+print(list(combinations([1, 2, 3], 2)))
+=> [('a', 1), ('a', 2), ('b', 1), ('b', 2)]
+=> [(1, 2), (1, 3), (2, 3)]
+@js
+const product = ["a", "b"].flatMap((x) => [1, 2].map((n) => [x, n]));
+const combos = [];
+const items = [1, 2, 3];
+for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) combos.push([items[i], items[j]]);
+console.log(JSON.stringify(product));
+console.log(JSON.stringify(combos));
+=> [["a",1],["a",2],["b",1],["b",2]]
+=> [[1,2],[1,3],[2,3]]
+
+@@@ Unique ids
+@py
+import uuid
+print(len(str(uuid.uuid4())))
+=> 36
+@js
+console.log(crypto.randomUUID().length);
+=> 36
+
+@@@ Hashing and Base64
+@py
+import hashlib, base64
+print(hashlib.sha256(b"hello").hexdigest()[:12], base64.b64encode(b"qa").decode())
+=> 2cf24dba5fb0 cWE=
+@js
+const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("hello"));
+const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+console.log(hex.slice(0, 12), btoa("qa"));
+=> 2cf24dba5fb0 cWE=

@@ -170,7 +170,7 @@
   }
 
   /* ------------------------------------------------------- problems view */
-  const view = { problems: $("#viewProblems"), playground: $("#viewPlayground") };
+  const view = { problems: $("#viewProblems"), cheatsheet: $("#viewCheatsheet"), playground: $("#viewPlayground") };
 
   function renderWelcome() {
     const done = PROBLEMS.filter((p) => state.solved.has(p.id)).length;
@@ -420,18 +420,139 @@
     }
   }
 
+  /* --------------------------------------------------------- cheat sheet */
+  const CS = { section: store.get("qa.csSection", "all"), query: "" };
+  const CS_DATA = window.CHEATSHEET || [];
+
+  /** The code block to show for the current language; TypeScript falls back to the JavaScript block. */
+  function csBlock(entry, lang) {
+    if (entry.code[lang]) return { block: entry.code[lang], lang, fallback: false };
+    return { block: entry.code.js, lang: "ts", fallback: true };   // JavaScript is valid TypeScript
+  }
+  const slug = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+  function renderCheatsheet() {
+    const lang = state.lang;
+    const sections = CS_DATA.map((sec) => ({ sec, entries: sec.entries.filter((e) => csMatches(e, lang)) }))
+      .filter((x) => x.entries.length && (CS.section === "all" || slug(x.sec.title) === CS.section));
+    const total = CS_DATA.reduce((n, s) => n + s.entries.length, 0);
+    const shown = sections.reduce((n, x) => n + x.entries.length, 0);
+
+    view.cheatsheet.innerHTML = `
+      <h1 class="title">Cheat sheet <span class="badge">${ext[lang]}</span></h1>
+      <p class="muted" style="margin-top:0">Concepts and methods with working examples, side by side for ${ext[lang]}.
+        Switch the language at the top right. Press <b>Run</b> to execute an example in your browser.</p>
+      <div class="cs-bar">
+        <input id="csSearch" type="search" placeholder="Search ${total} entries… (try “sort”, “regex”, “async”)" aria-label="Search the cheat sheet" value="${esc(CS.query)}" autocomplete="off">
+        <div class="chips" id="csChips" role="group" aria-label="Sections">
+          <button class="chip" data-sec="all" aria-pressed="${CS.section === "all"}">All <span>${total}</span></button>
+          ${CS_DATA.map((s) => `<button class="chip" data-sec="${slug(s.title)}" aria-pressed="${CS.section === slug(s.title)}">${esc(s.title)} <span>${s.entries.length}</span></button>`).join("")}
+        </div>
+      </div>
+      <div class="muted" id="csCount" style="margin:10px 0 0">${shown} of ${total} entries</div>
+      <div id="csBody">${sections.length ? sections.map(({ sec, entries }) => `
+        <h2 class="cs-section" id="sec-${slug(sec.title)}">${esc(sec.title)}</h2>
+        ${entries.map((e) => csCard(e, lang)).join("")}`).join("") : `<div class="card"><div class="card-body muted">Nothing matches “${esc(CS.query)}”.</div></div>`}
+      </div>`;
+
+    $("#csSearch").addEventListener("input", (e) => {
+      CS.query = e.target.value.trim().toLowerCase();
+      const pos = e.target.selectionStart;
+      renderCheatsheet();
+      const box = $("#csSearch");
+      box.focus();
+      box.setSelectionRange(pos, pos);
+    });
+    $("#csChips").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-sec]");
+      if (!b) return;
+      CS.section = b.dataset.sec;
+      store.set("qa.csSection", CS.section);
+      renderCheatsheet();
+    });
+    view.cheatsheet.onclick = csClick;
+  }
+
+  function csMatches(entry, lang) {
+    if (!CS.query) return true;
+    const { block } = csBlock(entry, lang);
+    return (entry.title + " " + entry.desc + " " + entry.notes.join(" ") + " " + block.code).toLowerCase().includes(CS.query);
+  }
+
+  function csCard(entry, lang) {
+    const { block, lang: codeLang, fallback } = csBlock(entry, lang);
+    const key = slug(entry.title);
+    const hl = highlight(block.code, codeLang === "py" ? "py" : "js");
+    return `<article class="card cs-entry" data-key="${key}" data-lang="${codeLang}">
+      <div class="card-head"><h3>${esc(entry.title)}</h3>
+        <span class="status">${fallback ? '<span class="badge" title="No TypeScript-specific version: the JavaScript code is valid TypeScript">same as JavaScript</span> ' : ""}${block.run ? "" : '<span class="badge" title="Needs Node.js, a network, or a real browser, so it cannot run on this page">view only</span>'}</span></div>
+      <div class="card-body">
+        ${entry.desc ? `<p style="margin-top:0">${esc(entry.desc)}</p>` : ""}
+        <pre class="code">${hl}</pre>
+        ${block.out.length ? `<div class="cs-out-label muted">Output</div><pre class="code cs-expected">${esc(block.out.join("\n"))}</pre>` : ""}
+        ${entry.notes.map((n) => `<div class="note">${esc(n)}</div>`).join("")}
+        <div class="toolbar" style="margin-top:10px">
+          ${block.run ? `<button class="btn primary" data-act="run">▶ Run</button>` : ""}
+          <button class="btn" data-act="copy">Copy</button>
+          ${block.run ? `<button class="btn" data-act="play">Open in Playground</button>` : ""}
+        </div>
+        <div class="cs-result" hidden></div>
+      </div>
+    </article>`;
+  }
+
+  function csFind(card) {
+    const entry = CS_DATA.flatMap((s) => s.entries).find((e) => slug(e.title) === card.dataset.key);
+    const { block } = csBlock(entry, state.lang);
+    return { block, lang: card.dataset.lang };
+  }
+
+  async function csClick(ev) {
+    const btn = ev.target.closest("[data-act]");
+    if (!btn) return;
+    const card = btn.closest(".cs-entry");
+    const { block, lang } = csFind(card);
+    if (btn.dataset.act === "copy") {
+      try { await navigator.clipboard.writeText(block.code); btn.textContent = "Copied"; } catch (e) { btn.textContent = "Copy failed"; }
+      setTimeout(() => { btn.textContent = "Copy"; }, 1500);
+    } else if (btn.dataset.act === "play") {
+      store.set(`qa.play.${state.lang}`, block.code);
+      location.hash = "playground";
+    } else if (btn.dataset.act === "run") {
+      const box = $(".cs-result", card);
+      btn.disabled = true;
+      box.hidden = false;
+      box.innerHTML = '<pre class="console"><span class="meta">Running…</span></pre>';
+      Runner.setStatusHandler((t) => { box.innerHTML = `<pre class="console"><span class="meta">${esc(t)}</span></pre>`; });
+      const res = await Runner.run({ lang, mode: "free", code: block.code }, 15000);
+      btn.disabled = false;
+      const actual = (res.logs || "").replace(/\n+$/, "");
+      const expected = block.out.join("\n");
+      let verdict = "";
+      if (res.error) verdict = `<div class="summary bad">${res.timeout ? "⏱ Time limit exceeded" : "✗ Error"}</div>`;
+      else if (block.out.length) verdict = actual === expected
+        ? '<div class="summary ok">✓ Output matches</div>'
+        : '<div class="summary bad">✗ Output differs from the documented output</div>';
+      box.innerHTML = `${verdict}<pre class="console">${esc(actual)}${res.error ? `<span class="err">${actual ? "\n" : ""}${esc(res.error)}</span>` : ""}</pre>`;
+    }
+  }
+
   /* ---------------------------------------------------------------- router */
   function render() {
     syncLangUi();
     $$(".tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.view === state.view)));
     view.problems.hidden = state.view !== "problems";
+    view.cheatsheet.hidden = state.view !== "cheatsheet";
     view.playground.hidden = state.view !== "playground";
-    $(".layout").classList.toggle("no-side", state.view === "playground");
+    $(".layout").classList.toggle("no-side", state.view !== "problems");
     document.body.dataset.view = state.view;
     state.revealed = false;
     if (state.view === "playground") {
       document.title = "Playground · QA Interview Playground";
       renderPlayground();
+    } else if (state.view === "cheatsheet") {
+      document.title = "Cheat sheet · QA Interview Playground";
+      renderCheatsheet();
     } else if (state.current && BY_ID[state.current]) {
       const p = BY_ID[state.current];
       document.title = `${p.title} · QA Interview Playground`;
@@ -446,13 +567,14 @@
   function route() {
     const h = location.hash.replace(/^#/, "");
     if (h === "playground") { state.view = "playground"; }
+    else if (h === "cheatsheet") { state.view = "cheatsheet"; }
     else { state.view = "problems"; state.current = BY_ID[h] ? h : null; }
     state.token++;
     closeMenu();
     render();
   }
   $$(".tab").forEach((t) => t.addEventListener("click", () => {
-    if (t.dataset.view === "playground") location.hash = "playground";
+    if (t.dataset.view === "playground" || t.dataset.view === "cheatsheet") location.hash = t.dataset.view;
     else location.hash = state.current || "";
     if (t.dataset.view === "problems" && !state.current) route();
   }));

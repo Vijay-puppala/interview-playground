@@ -25,7 +25,8 @@
     <a class="brand" href="#" id="brand"><span class="logo" aria-hidden="true">&lt;/&gt;</span><span class="brand-text">QA Interview Playground</span></a>
     <nav class="tabs" aria-label="Sections">
       <button class="tab" id="tabProblems" data-view="problems">Problems</button>
-      <button class="tab" id="tabPlayground" data-view="playground">Playground</button>
+      <button class="tab" id="tabCheatsheet" data-view="cheatsheet" aria-label="Cheat sheet"><span class="long">Cheat sheet</span><span class="short">Cheats</span></button>
+      <button class="tab" id="tabPlayground" data-view="playground" aria-label="Playground"><span class="long">Playground</span><span class="short">Play</span></button>
     </nav>
     <div class="spacer"></div>
     <div class="seg" id="langSeg" role="radiogroup" aria-label="Language">
@@ -55,6 +56,7 @@
 
     <main class="main" id="main">
       <section id="viewProblems" class="view"></section>
+      <section id="viewCheatsheet" class="view wide" hidden></section>
       <section id="viewPlayground" class="view" hidden></section>
     </main>
   </div>
@@ -62,6 +64,7 @@
 
   <script src="data/problems.js"></script>
   <script src="data/bundles.js"></script>
+  <script src="data/cheatsheet.js"></script>
   <script src="hl.js"></script>
   <script src="runner.js"></script>
   <script src="samples.js"></script>

@@ -84,80 +84,18 @@
   `;
 
   /* ------------------------------------------------------------ Python worker */
-  const PY_HARNESS = String.raw`
-import sys, io, json, math, copy, traceback, contextlib, time
-
-def _eq(a, b):
-    if isinstance(a, bool) or isinstance(b, bool):
-        return type(a) is type(b) and a == b
-    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
-        return math.isclose(a, b, rel_tol=1e-9, abs_tol=1e-9)
-    if isinstance(a, list) and isinstance(b, list):
-        return len(a) == len(b) and all(_eq(x, y) for x, y in zip(a, b))
-    if isinstance(a, dict) and isinstance(b, dict):
-        return a.keys() == b.keys() and all(_eq(a[k], b[k]) for k in a)
-    return a == b
-
-def _plain(v):
-    return json.loads(json.dumps(v, default=str))
-
-def _short_tb(e):
-    tb = e.__traceback__
-    while tb is not None and tb.tb_frame.f_code.co_filename != "<your code>" and tb.tb_next is not None:
-        tb = tb.tb_next
-    return "".join(traceback.format_exception(type(e), e, tb)).strip()
-
-def _load(code, out):
-    ns = {"__name__": "__main__"}
-    exec(compile(code, "<your code>", "exec"), ns)
-    return ns
-
-def run_cases(code, fn_name, cases_json):
-    cases, out, results = json.loads(cases_json), io.StringIO(), []
-    started = time.perf_counter()
-    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
-        try:
-            ns = _load(code, out)
-        except BaseException as e:
-            return json.dumps({"error": _short_tb(e), "logs": out.getvalue()})
-        fn = ns.get(fn_name)
-        if not callable(fn):
-            return json.dumps({"error": "NameError: define a function named " + fn_name, "logs": out.getvalue()})
-        for c in cases:
-            try:
-                got = _plain(fn(*copy.deepcopy(c["args"])))
-                if c.get("raises"):
-                    results.append({"ok": False, "got": json.dumps(got), "error": "expected an error to be raised"})
-                else:
-                    results.append({"ok": _eq(got, c["expect"]), "got": json.dumps(got)})
-            except BaseException as e:
-                results.append({"ok": True} if c.get("raises") else {"ok": False, "error": _short_tb(e)})
-    return json.dumps({"results": results, "logs": out.getvalue(), "ms": (time.perf_counter() - started) * 1000})
-
-def run_script(code, demo=""):
-    out = io.StringIO()
-    started = time.perf_counter()
-    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
-        try:
-            _load(code + ("\n" + demo if demo else ""), out)
-        except BaseException as e:
-            return json.dumps({"error": _short_tb(e), "logs": out.getvalue()})
-    return json.dumps({"logs": out.getvalue(), "ms": (time.perf_counter() - started) * 1000})
-`;
-
   const PY_WORKER = `
     let py = null;
-    const PY_HARNESS = ${JSON.stringify(PY_HARNESS)};
-    async function init(url) {
+    async function init(url, harnessUrl) {
       importScripts(url + "pyodide.js");
       py = await loadPyodide({ indexURL: url });
-      py.runPython(PY_HARNESS);
+      py.runPython(await (await fetch(harnessUrl)).text());   // the shared harness, web/py_harness.py
     }
     self.onmessage = async (e) => {
       const m = e.data;
       try {
         if (m.mode === "init") {
-          await init(m.url);
+          await init(m.url, m.harnessUrl);
           self.postMessage({ id: m.id, ok: true });
           return;
         }
@@ -170,7 +108,11 @@ def run_script(code, demo=""):
         py.setStdin({ stdin: () => (lines.length ? lines.shift() : undefined) });
         let raw;
         if (m.mode === "cases") raw = py.globals.get("run_cases")(m.code, m.fnName, JSON.stringify(m.cases));
-        else raw = py.globals.get("run_script")(m.code, m.mode === "demo" ? m.demo : "");
+        else {
+          py.globals.set("_code", m.code);
+          py.globals.set("_demo", m.mode === "demo" ? m.demo : "");
+          raw = await py.runPythonAsync("await run_script_async(_code, _demo)");   // top-level await works
+        }
         self.postMessage(Object.assign({ id: m.id, ok: true }, JSON.parse(raw)));
       } catch (err) {
         self.postMessage({ id: m.id, ok: false, error: String(err && err.message ? err.message : err) });
@@ -224,7 +166,7 @@ def run_script(code, demo=""):
     const entry = { worker };
     state.py = entry;
     onStatus("Loading Python runtime (first run only)…");
-    entry.ready = call(worker, { mode: "init", url: URLS.pyodide }, 120000, "py").then((r) => {
+    entry.ready = call(worker, { mode: "init", url: URLS.pyodide, harnessUrl: new URL("py_harness.py", location.href).href }, 120000, "py").then((r) => {
       if (!r.ok) { kill("py"); throw new Error(r.error); }
       return r;
     });

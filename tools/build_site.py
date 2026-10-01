@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT / "content"))
 
 from demos import DEMOS  # noqa: E402
 from playground._registry import discover  # noqa: E402
+from tools.cheatsheet import load as load_cheatsheet  # noqa: E402
 from tools.export_cases import export as export_cases  # noqa: E402
 
 PREFIX = re.compile(r"\bp\d{3}_")
@@ -354,10 +355,14 @@ def main():
     meta = [{"id": k, "label": v, "count": sum(1 for e in problems if e["category"] == k)} for k, v in CATEGORY_META.items()]
     (out / "problems.js").write_text("window.CATEGORIES = " + json.dumps(meta) + ";\nwindow.PROBLEMS = "
                                      + json.dumps(problems, separators=(",", ":")) + ";\n")
+    cheat = [{"title": sec["title"], "entries": [{k: e[k] for k in ("title", "desc", "notes", "code")} for e in sec["entries"]]}
+             for sec in load_cheatsheet()]
+    (out / "cheatsheet.js").write_text("window.CHEATSHEET = " + json.dumps(cheat, separators=(",", ":")) + ";\n")
     (out / "bundles.js").write_text("window.BUNDLES = " + json.dumps(bundles, separators=(",", ":")) + ";\n")
     write_index(problems)
     counts = {m["label"]: m["count"] for m in meta}
     print(f"{len(problems)} problems:", counts)
+    print("cheat sheet:", len(cheat), "sections,", sum(len(c["entries"]) for c in cheat), "entries")
     print("sizes:", {f.name: f"{f.stat().st_size // 1024} KB" for f in out.iterdir()})
 
 
