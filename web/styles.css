@@ -499,3 +499,8 @@ body[data-view="home"] .menu-btn, body[data-view="about"] .menu-btn { display: n
 .rail-about { margin-top: auto; }
 @media (max-width: 900px) { .rail-about { margin-top: 0; } }
 @media (max-width: 380px) { .rail-item { font-size: 10px; } .rail-item svg { width: 20px; height: 20px; } }
+
+/* ---- cheat-sheet section brand icons ----------------------------------------------------------- */
+.plist .t svg { vertical-align: -3px; margin-right: 4px; }
+.plist button[aria-current="true"] .t svg { color: inherit !important; }
+.cs-section svg { vertical-align: -4px; margin-right: 8px; }

@@ -11,6 +11,8 @@ File format (plain text, so code needs no escaping):
     => hi          one expected output line per "=>" line ("=>" alone = empty line)
     @sql           SQL block (runs on the in-browser PostgreSQL; shown for every language)
                    expected output = header line "a | b" then one "x | y" line per row, NULL for null
+    @cli           shell / YAML / HCL / JSON for DevOps tools (Docker, Kubernetes, AWS, Azure, Terraform, Git).
+                   Always view-only (needs real tools and credentials), shown for every language.
     @js!           trailing "!" = shown but never executed (needs Node, network, a browser...)
 
 A @ts block is optional; when missing the site shows the JavaScript code for TypeScript too.
@@ -21,7 +23,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-BLOCK = re.compile(r"^@(py|js|ts|sql)(!?)$")
+BLOCK = re.compile(r"^@(py|js|ts|sql|cli)(!?)$")
 
 
 def parse_text(text: str, source: str = "") -> list[dict]:
@@ -39,7 +41,7 @@ def parse_text(text: str, source: str = "") -> list[dict]:
         elif line.startswith("! ") and entry is not None:      # gotcha notes are allowed anywhere in an entry
             entry["notes"].append(line[2:].strip())
         elif (m := BLOCK.match(line)) and entry is not None:
-            block = {"code": [], "out": [], "run": not m.group(2)}
+            block = {"code": [], "out": [], "run": not m.group(2) and m.group(1) != "cli"}
             entry["code"][m.group(1)] = block
         elif block is not None:
             if line.startswith("=>"):

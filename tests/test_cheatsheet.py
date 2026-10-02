@@ -31,10 +31,28 @@ def test_sql_blocks_are_sql_only_and_runnable_ones_have_output():
                 assert (not b["run"]) or b["out"] or e["title"] == "Orphan rows (broken foreign keys)", e["title"]
 
 
+def test_cli_blocks_are_cli_only_and_never_runnable():
+    n = 0
+    for sec in cheatsheet.load():
+        for e in sec["entries"]:
+            if "cli" in e["code"]:
+                n += 1
+                assert set(e["code"]) == {"cli"}, e["title"]
+                b = e["code"]["cli"]
+                assert b["run"] is False and not b["out"], e["title"]
+                assert b["code"].strip(), e["title"]
+    assert n >= 60
+
+
+def test_devops_sections_exist():
+    titles = {s["title"] for s in cheatsheet.load()}
+    assert {"Docker", "Kubernetes", "AWS", "Azure", "Terraform", "Git & GitHub"} <= titles
+
+
 def test_every_entry_covers_python_and_javascript():
     for sec in cheatsheet.load():
         for e in sec["entries"]:
-            if "sql" in e["code"]:      # SQL entries are language independent
+            if "sql" in e["code"] or "cli" in e["code"]:      # SQL and DevOps entries are language independent
                 continue
             assert {"py", "js"} <= set(e["code"]), f"{sec['title']} / {e['title']} needs py and js"
 

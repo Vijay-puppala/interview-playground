@@ -205,7 +205,7 @@ await check("cheat sheet: lists every entry and follows the language switch", as
   await page.goto(base + "#cheatsheet");
   await setLang("py");
   await page.waitForSelector(".cs-entry");
-  eq(await page.locator(".cs-entry").count(), 170, "entries");
+  eq(await page.locator(".cs-entry").count(), 240, "entries");
   if (!(await page.textContent('.cs-entry[data-key="variables-and-types"] pre.code')).includes("type(name).__name__")) throw new Error("python code missing");
   await setLang("js");
   if (!(await page.textContent('.cs-entry[data-key="variables-and-types"] pre.code')).includes("typeof")) throw new Error("javascript code missing");
@@ -222,7 +222,7 @@ await check("cheat sheet: search and section filter", async () => {
   await page.waitForFunction(() => document.querySelectorAll(".cs-entry").length === 8);
   eq(await page.locator(".cs-section").count(), 1, "one section heading");
   await page.click('#csChips [data-sec="all"]');
-  await page.waitForFunction(() => document.querySelectorAll(".cs-entry").length === 170);
+  await page.waitForFunction(() => document.querySelectorAll(".cs-entry").length === 240);
 });
 
 await check("cheat sheet: run a Python example", async () => {
@@ -437,6 +437,27 @@ await check("cheat sheet: SQL entry runs on Postgres, matches its documented out
   await page.waitForSelector("#tryHost textarea");
   if (!/GROUP BY status/.test(await page.inputValue("#tryHost textarea"))) throw new Error("example not loaded into the SQL try-it box");
   await page.goto(base + "#cheatsheet");
+  await setLang("py");
+});
+
+await check("cheat sheet: DevOps sections (Docker, Kubernetes, AWS, Azure, Terraform, Git) are highlighted, copy-only and ignore the language switch", async () => {
+  await page.goto(base + "#cheatsheet");
+  await setLang("js");
+  await page.click('#csChips [data-sec="docker"]');
+  await page.waitForSelector('.cs-entry[data-lang="cli"]');
+  eq(await page.locator('.cs-entry[data-lang="cli"]').count(), 11, "Docker entries");
+  eq(await page.locator('.cs-entry [data-act="run"]').count(), 0, "no Run button on DevOps entries");
+  if ((await page.locator('.cs-entry[data-lang="cli"] pre.code .tok-c, .cs-entry[data-lang="cli"] pre.code .tok-f').count()) < 3) throw new Error("shell highlighting missing");
+  if (!/copy &amp; run locally|copy & run locally/.test(await page.textContent('.cs-entry[data-lang="cli"] .status'))) throw new Error("copy-only badge missing");
+  eq((await page.locator("#csChips svg").count()) >= 6, true, "brand icons in the section list");
+  for (const sec of ["kubernetes", "aws", "azure", "terraform", "git-github"]) {
+    await page.click(`#csChips [data-sec="${sec}"]`);
+    await page.waitForSelector('.cs-entry[data-lang="cli"]');
+  }
+  await page.click('#csChips [data-sec="all"]');
+  await page.fill("#csSearch", "terraform apply");
+  await page.waitForSelector('.cs-entry[data-lang="cli"]');
+  await page.fill("#csSearch", "");
   await setLang("py");
 });
 
