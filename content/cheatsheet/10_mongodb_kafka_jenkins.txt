@@ -1,0 +1,676 @@
+@@ MongoDB
+
+@@@ Connect with mongosh
+mongosh is the MongoDB shell. A server holds databases, a database holds collections, a collection holds documents.
+@cli
+mongosh "mongodb://localhost:27017"
+mongosh "mongodb://user:pass@host:27017/shop?authSource=admin"
+mongosh --eval 'db.runCommand({ ping: 1 })'     # run one command and exit
+
+show dbs                  // list databases
+use shop                  // switch (the database is created on first write)
+show collections
+db.version()
+db.stats()
+! Never put a real password on the command line or in a script that is committed. Use environment variables or a secrets manager.
+
+@@@ MongoDB versus relational databases
+The vocabulary maps closely, but the data model is different.
+@txt
+Relational        MongoDB
+Database          Database
+Table             Collection
+Row               Document (BSON, like JSON with more types)
+Column            Field (documents in one collection may differ)
+JOIN              $lookup stage, or embed the related data in the document
+Primary key       _id (an ObjectId unless you set it)
+Schema            Optional schema validation ($jsonSchema)
+Transaction       Single-document writes are atomic; multi-document transactions need a replica set
+
+@@@ Insert documents
+Documents are JSON-like. MongoDB adds an _id automatically if you leave it out.
+@cli
+db.users.insertOne({ name: "Ada", email: "ada@mail.test", age: 36, tags: ["qa", "sql"] })
+
+db.users.insertMany([
+  { name: "Ben", email: "ben@mail.test", age: 29 },
+  { name: "Cleo", email: "cleo@mail.test", age: 41, address: { city: "Paris", country: "France" } }
+])
+// insertMany stops at the first error unless you pass { ordered: false }
+
+@@@ Find with filters, projection, sort and limit
+find returns a cursor. Chain sort, skip and limit; pass a second argument to choose fields.
+@cli
+db.users.find({ age: { $gte: 30 } })
+db.users.findOne({ email: "ada@mail.test" })
+db.users.find({ "address.city": "Paris" })                 // dot notation reaches into sub-documents
+db.users.find({}, { name: 1, email: 1, _id: 0 })           // projection: only these fields
+db.users.find().sort({ age: -1 }).skip(10).limit(5)        // newest-style paging
+db.users.countDocuments({ age: { $lt: 40 } })
+db.users.distinct("address.country")
+! Sort and projection use 1 for ascending / include and -1 for descending. Mixing include and exclude in one projection is an error (except _id).
+
+@@@ Query operators
+Operators start with $ and describe the condition inside the filter.
+@cli
+{ age: { $gt: 30, $lte: 50 } }                  // comparison: $eq $ne $gt $gte $lt $lte
+{ status: { $in: ["new", "open"] } }            // $in / $nin
+{ $or: [{ age: { $lt: 18 } }, { vip: true }] }  // logical: $and $or $nor $not
+{ phone: { $exists: false } }                   // field is missing
+{ age: { $type: "string" } }                    // wrong type (a favourite data-quality check)
+{ tags: { $all: ["qa", "sql"] } }               // array contains all of these
+{ tags: { $size: 2 } }
+{ items: { $elemMatch: { sku: "A1", qty: { $gt: 2 } } } }   // one array element matches all conditions
+{ name: { $regex: "^A", $options: "i" } }
+! Several conditions on array fields without $elemMatch can match different elements. Use $elemMatch when they must hold for the same element.
+
+@@@ Update operators
+Update with operators, not by replacing the whole document, unless you mean to.
+@cli
+db.users.updateOne({ email: "ada@mail.test" }, { $set: { age: 37 }, $inc: { logins: 1 } })
+db.users.updateOne({ email: "ada@mail.test" }, { $push: { tags: "mongodb" } })
+db.users.updateOne({ email: "ada@mail.test" }, { $addToSet: { tags: "qa" } })    // add if missing
+db.users.updateOne({ email: "ada@mail.test" }, { $pull: { tags: "sql" } })
+db.users.updateOne({ email: "ada@mail.test" }, { $unset: { legacy: "" } })
+db.users.updateMany({ status: "trial" }, { $set: { status: "expired" } })
+db.users.updateOne({ email: "new@mail.test" }, { $setOnInsert: { created: new Date() } }, { upsert: true })
+db.users.findOneAndUpdate({ email: "ada@mail.test" }, { $inc: { logins: 1 } }, { returnDocument: "after" })
+! replaceOne and an update without operators replace the entire document. Forgetting $set is a classic way to lose data.
+
+@@@ Delete documents
+Run the same filter with find first, to see what you are about to remove.
+@cli
+db.users.find({ status: "expired" }).count()
+db.users.deleteOne({ email: "ben@mail.test" })
+db.users.deleteMany({ status: "expired" })
+db.users.drop()                // remove the whole collection and its indexes
+! deleteMany({}) with an empty filter deletes every document.
+
+@@@ Aggregation pipeline
+Documents flow through stages: filter, group, reshape, sort. This is MongoDB's GROUP BY and more.
+@cli
+db.orders.aggregate([
+  { $match: { status: "delivered", date: { $gte: ISODate("2024-01-01") } } },
+  { $group: { _id: "$customerId", orders: { $sum: 1 }, revenue: { $sum: "$amount" } } },
+  { $match: { revenue: { $gt: 1000 } } },
+  { $sort: { revenue: -1 } },
+  { $limit: 5 },
+  { $project: { _id: 0, customerId: "$_id", orders: 1, revenue: 1 } }
+])
+! Put $match as early as possible so it can use an index and shrink the data before the expensive stages.
+
+@@@ $lookup joins and $unwind
+Join another collection into each document, then flatten the resulting array.
+@cli
+db.orders.aggregate([
+  { $lookup: { from: "customers", localField: "customerId", foreignField: "_id", as: "customer" } },
+  { $unwind: "$customer" },
+  { $project: { amount: 1, "customer.name": 1, "customer.email": 1 } }
+])
+
+// orders whose customer is missing (orphans)
+db.orders.aggregate([
+  { $lookup: { from: "customers", localField: "customerId", foreignField: "_id", as: "c" } },
+  { $match: { c: { $size: 0 } } }
+])
+
+@@@ MongoDB indexes and explain
+Indexes avoid scanning every document. explain shows what the planner actually did.
+@cli
+db.users.createIndex({ email: 1 }, { unique: true })
+db.orders.createIndex({ customerId: 1, date: -1 })              // compound: order of fields matters
+db.sessions.createIndex({ createdAt: 1 }, { expireAfterSeconds: 3600 })   // TTL: auto-delete old documents
+db.articles.createIndex({ title: "text", body: "text" })
+db.users.getIndexes()
+db.orders.find({ customerId: 7 }).explain("executionStats")
+// look at: winningPlan stage IXSCAN (index) vs COLLSCAN (full scan), totalDocsExamined vs nReturned
+! If totalDocsExamined is far bigger than nReturned, the query needs a better index.
+
+@@@ Schema validation with $jsonSchema
+MongoDB is flexible by default. A validator makes the database reject documents that break the rules.
+@cli
+db.createCollection("customers", {
+  validator: { $jsonSchema: {
+    bsonType: "object",
+    required: ["name", "email"],
+    properties: {
+      name:  { bsonType: "string", minLength: 1 },
+      email: { bsonType: "string", pattern: "^[^@\\s]+@[^@\\s]+\\.[a-z]{2,}$" },
+      age:   { bsonType: "int", minimum: 0, maximum: 120 }
+    }
+  } },
+  validationLevel: "strict",
+  validationAction: "error"
+})
+db.runCommand({ collMod: "customers", validator: { /* new rules */ } })
+
+@@@ Embed or reference
+The central modelling decision in MongoDB.
+@txt
+Embed when        the data is read together, belongs to one parent, and the array stays small and bounded
+                  (an order with its line items, a user with a few addresses)
+Reference when    the data is shared by many parents, changes independently, or grows without bound
+                  (customers referenced by orders, comments on a popular post)
+Rules of thumb    model for your queries, not for normal forms; documents have a 16 MB limit;
+                  duplicating a little data (denormalising) is normal, but then you must keep copies in sync
+What to test      queries still fast with realistic volumes, no unbounded arrays, updates reach every copy
+
+@@@ Transactions and replica sets
+A single-document write is always atomic. Multi-document transactions need a replica set (or sharded cluster).
+@cli
+const session = db.getMongo().startSession()
+session.startTransaction()
+try {
+  const orders = session.getDatabase("shop").orders
+  const stock  = session.getDatabase("shop").stock
+  orders.insertOne({ sku: "A1", qty: 1 }, { session })
+  stock.updateOne({ sku: "A1" }, { $inc: { qty: -1 } }, { session })
+  session.commitTransaction()
+} catch (e) {
+  session.abortTransaction()
+  throw e
+}
+
+rs.status()          // replica set health: PRIMARY, SECONDARY, optime lag
+! Reads from a secondary can be slightly stale. Test read-your-own-write behaviour if your app reads from secondaries.
+
+@@@ Backup, restore, export and import
+dump / restore copy BSON (exact types). export / import use JSON or CSV (portable but lossy).
+@cli
+mongodump --uri="mongodb://localhost:27017" --db=shop --out=./backup
+mongorestore --uri="mongodb://localhost:27017" --drop ./backup
+mongoexport --db=shop --collection=users --out=users.json
+mongoimport --db=shop --collection=users --file=users.json --jsonArray
+
+@@@ Use MongoDB from Python (pymongo)
+Test data setup and verification from a pytest suite.
+@cli
+from pymongo import MongoClient
+
+client = MongoClient("mongodb://localhost:27017")
+users = client["shop"]["users"]
+
+users.insert_one({"name": "Ada", "email": "ada@mail.test"})
+doc = users.find_one({"email": "ada@mail.test"}, {"_id": 0})
+assert doc["name"] == "Ada"
+
+users.update_one({"email": "ada@mail.test"}, {"$set": {"age": 37}})
+print(users.count_documents({"age": {"$gte": 30}}))
+users.delete_many({"email": {"$regex": "@mail.test$"}})     # clean up test data
+! Clean up by filter or use a throwaway database per test run, so tests never touch real data.
+
+@@@ Data quality checks in MongoDB
+Typical validation queries for a QE: duplicates, missing fields and wrong types.
+@cli
+// duplicate emails
+db.users.aggregate([
+  { $group: { _id: "$email", n: { $sum: 1 } } },
+  { $match: { n: { $gt: 1 } } }
+])
+
+// missing or null required field
+db.users.countDocuments({ $or: [{ email: { $exists: false } }, { email: null }] })
+
+// age stored as a string instead of a number
+db.users.countDocuments({ age: { $type: "string" } })
+
+// field-by-field type profile of a collection
+db.users.aggregate([
+  { $project: { kv: { $objectToArray: "$$ROOT" } } },
+  { $unwind: "$kv" },
+  { $group: { _id: { field: "$kv.k", type: { $type: "$kv.v" } }, n: { $sum: 1 } } },
+  { $sort: { "_id.field": 1 } }
+])
+
+@@ Kafka
+
+@@@ Kafka core concepts
+Kafka is a distributed, durable log for streams of events. Producers append; consumers read at their own pace.
+@txt
+Event / record     key + value + timestamp (+ headers); the unit of data
+Topic              a named stream of records, like a table or a folder of logs
+Partition          a topic is split into partitions; each is an ordered, append-only log
+Offset             the position of a record inside a partition (0, 1, 2, ...)
+Broker             a Kafka server; a cluster has several brokers
+Replication        each partition has copies on other brokers; one is the leader, the others followers (ISR = in-sync replicas)
+Producer           writes records to a topic
+Consumer           reads records; position tracked per consumer group
+Consumer group     consumers sharing a group.id split the partitions between them (each partition is read by one member)
+Ordering           guaranteed only within a partition, not across the whole topic
+Retention          records stay for a time or size limit (default 7 days), whether or not they were read
+! Records are not removed when consumed. That is what lets you replay, add new consumers later and reprocess after a bug.
+
+@@@ Run Kafka locally with Docker
+A single-node broker for development (KRaft mode, no ZooKeeper needed).
+@cli
+docker run -d --name kafka -p 9092:9092 apache/kafka:3.8.0
+
+docker exec -it kafka bash
+cd /opt/kafka/bin
+./kafka-topics.sh --bootstrap-server localhost:9092 --list
+! Run the Kafka scripts inside the container. From the host, apps connect to localhost:9092 as the bootstrap server.
+
+@@@ Create and inspect topics
+Partitions set the parallelism; the replication factor sets durability.
+@cli
+kafka-topics.sh --bootstrap-server localhost:9092 --create --topic orders --partitions 3 --replication-factor 1
+kafka-topics.sh --bootstrap-server localhost:9092 --list
+kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic orders
+kafka-topics.sh --bootstrap-server localhost:9092 --alter --topic orders --partitions 6
+kafka-topics.sh --bootstrap-server localhost:9092 --delete --topic orders
+! You can add partitions but never remove them, and adding partitions changes which partition a key maps to.
+
+@@@ Console producer and consumer
+The quickest way to see events flow. Type a line to publish it.
+@cli
+kafka-console-producer.sh --bootstrap-server localhost:9092 --topic orders
+> {"id":1,"item":"book"}
+> {"id":2,"item":"pen"}
+
+kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic orders --from-beginning
+kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic orders --partition 0 --offset 5 --max-messages 10
+kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic orders \
+  --property print.key=true --property print.timestamp=true --property print.partition=true
+
+@@@ Keys and partitioning
+Records with the same key go to the same partition, so they keep their order.
+@cli
+kafka-console-producer.sh --bootstrap-server localhost:9092 --topic orders \
+  --property parse.key=true --property key.separator=:
+> customer-7:{"id":1,"item":"book"}
+> customer-7:{"id":2,"item":"pen"}      # same key -> same partition -> read in this order
+> customer-9:{"id":3,"item":"ink"}      # may be another partition
+! Without a key, records are spread across partitions and there is no ordering between them. Choose the key from what must stay in order (customer id, order id).
+
+@@@ Consumer groups and lag
+Lag is how far a group is behind the end of the log. It is the first metric to check when processing is slow.
+@cli
+kafka-consumer-groups.sh --bootstrap-server localhost:9092 --list
+kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group order-service
+# GROUP          TOPIC   PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG
+# order-service  orders  0          120             125             5
+
+kafka-consumer-groups.sh --bootstrap-server localhost:9092 --group order-service \
+  --topic orders --reset-offsets --to-earliest --dry-run       # remove --dry-run, add --execute to apply
+! Stop the consumers before resetting offsets, and always run with --dry-run first.
+
+@@@ Producer reliability settings
+What you trade between speed and safety when writing.
+@cli
+acks=all                          # wait for all in-sync replicas (safest); 1 = leader only; 0 = fire and forget
+enable.idempotence=true           # retries cannot create duplicates within a partition
+retries=2147483647
+delivery.timeout.ms=120000
+linger.ms=5                       # wait a little to batch records
+batch.size=32768
+compression.type=lz4
+max.in.flight.requests.per.connection=5
+# broker / topic side
+min.insync.replicas=2             # with acks=all, a write needs at least 2 replicas
+! acks=all with min.insync.replicas=2 and replication factor 3 survives the loss of one broker without losing acknowledged data.
+
+@@@ Consumer settings and commits
+Control where a new group starts and when progress is saved.
+@cli
+group.id=order-service
+auto.offset.reset=earliest        # new group with no saved offset: start at the beginning (default: latest)
+enable.auto.commit=false          # commit after processing, not on a timer
+max.poll.records=500
+max.poll.interval.ms=300000       # processing slower than this triggers a rebalance
+session.timeout.ms=45000
+isolation.level=read_committed    # hide records from aborted transactions
+! Commit the offset after the work is done. Committing before processing can lose records if the app crashes in between.
+
+@@@ Delivery semantics
+What "how many times is a record processed" really means.
+@txt
+At most once     commit first, then process: a crash loses records, never duplicates
+At least once    process first, then commit: a crash can repeat records (the usual default)
+Exactly once     idempotent producer + transactions (and read_committed consumers) for Kafka-to-Kafka pipelines;
+                 for external systems, make the consumer idempotent (de-duplicate by an event id or upsert)
+What to test     kill the consumer mid-batch and confirm no data is lost; replay the same record and confirm
+                 the result does not change; poison messages go to a dead-letter topic instead of blocking the partition
+
+@@@ Produce and consume from Python
+The confluent-kafka client, as used in an integration test.
+@cli
+from confluent_kafka import Producer, Consumer
+
+p = Producer({"bootstrap.servers": "localhost:9092", "acks": "all"})
+p.produce("orders", key="customer-7", value='{"id": 1}',
+          callback=lambda err, msg: print(err or f"delivered to partition {msg.partition()} offset {msg.offset()}"))
+p.flush()
+
+c = Consumer({"bootstrap.servers": "localhost:9092", "group.id": "tests",
+              "auto.offset.reset": "earliest", "enable.auto.commit": False})
+c.subscribe(["orders"])
+msg = c.poll(timeout=10)
+assert msg is not None and msg.error() is None
+print(msg.key(), msg.value())
+c.commit(msg)
+c.close()
+! Always call flush() on the producer and close() on the consumer. Records can sit in a buffer and the group stays "alive" until the session times out.
+
+@@@ Retention, compaction and topic configs
+Decide how long records live: by time, by size, or keep only the latest value per key.
+@cli
+kafka-configs.sh --bootstrap-server localhost:9092 --entity-type topics --entity-name orders --describe
+kafka-configs.sh --bootstrap-server localhost:9092 --entity-type topics --entity-name orders \
+  --alter --add-config retention.ms=86400000          # keep 1 day
+kafka-topics.sh --bootstrap-server localhost:9092 --create --topic customer-state \
+  --config cleanup.policy=compact --partitions 3      # keep the latest record per key
+# a record with a key and a null value (a tombstone) deletes that key after compaction
+
+@@@ Schema Registry, Avro and Connect
+Agree on the shape of events, and move data in and out of Kafka without code.
+@txt
+Schema Registry    stores Avro / Protobuf / JSON schemas and checks compatibility when schemas change
+Compatibility      BACKWARD (new schema reads old data), FORWARD, FULL; pick one and enforce it in CI
+Kafka Connect      framework with ready-made connectors: source (database -> Kafka) and sink (Kafka -> database, S3, search)
+Kafka Streams      a Java library to filter, join and aggregate topics inside your own application
+What to test       a breaking schema change is rejected, connectors resume after restart without duplicates,
+                   a bad record goes to the dead-letter queue, throughput and lag under load
+
+@@@ What to test in a Kafka-based system
+A checklist for event-driven applications.
+@txt
+Contract         event schema, required fields, versioning; consumers tolerate unknown fields
+Ordering         records with the same key stay in order; no ordering assumed across partitions
+Delivery         no loss with acks=all, duplicates handled, replay after a bug gives the same result
+Failure          broker down, leader election, consumer crash, rebalance during processing, poison message
+Performance      throughput and end-to-end latency, consumer lag under peak load, partition count scaling
+Data             retention and compaction behave as configured, sensitive fields are masked or encrypted
+Tools            Testcontainers (a real broker in Docker), embedded Kafka, a mock producer/consumer for unit tests
+
+@@@ Troubleshooting Kafka
+Symptoms and where to look first.
+@txt
+Consumers receive nothing        wrong topic or group.id, auto.offset.reset=latest on a new group, consumer paused
+Lag keeps growing                processing too slow: add consumers (up to the partition count), optimise the handler, check poll intervals
+Frequent rebalances              max.poll.interval.ms too low for the work, unstable consumers, session timeouts
+Duplicate records                at-least-once delivery after a retry or crash: make the consumer idempotent
+Producer timeouts               broker unreachable, wrong advertised.listeners, min.insync.replicas not met
+Cannot connect from the host     the broker advertises an address the client cannot reach (advertised.listeners)
+
+@@ Jenkins
+
+@@@ Jenkins concepts
+Jenkins is an automation server. Most teams use it for continuous integration: build, test and deploy on every change.
+@txt
+Controller   the main server: UI, configuration, scheduling (formerly "master")
+Agent        a machine or container that runs the work; the controller assigns builds to agents by label
+Executor     one build slot on an agent
+Job / project   a configured task; today usually a Pipeline defined by a Jenkinsfile in the repository
+Pipeline     the build as code: stages and steps (declarative or scripted syntax)
+Workspace    the folder on an agent where a build checks out and runs
+Plugin       adds features (Git, Docker, Kubernetes, credentials, JUnit...); keep them updated
+Credentials  stored secrets that jobs reference by id, never by value
+Build        one run of a job, with a number, a console log, artifacts and test results
+
+@@@ A declarative Jenkinsfile
+Commit the pipeline next to the code. Stages run in order; any failing step stops the pipeline.
+@cli
+pipeline {
+  agent any
+  stages {
+    stage('Checkout') {
+      steps { checkout scm }
+    }
+    stage('Install') {
+      steps { sh 'pip install -r requirements.txt' }
+    }
+    stage('Test') {
+      steps { sh 'pytest -q --junitxml=results.xml' }
+    }
+  }
+  post {
+    always { junit 'results.xml' }
+  }
+}
+
+@@@ Agents: labels, Docker and Kubernetes
+Choose where the work runs, per pipeline or per stage.
+@cli
+agent { label 'linux && python' }                  // any agent with both labels
+
+agent {
+  docker { image 'python:3.12-slim'; args '-u root' }   // run the steps inside a container
+}
+
+agent {
+  kubernetes {
+    yaml '''
+      spec:
+        containers:
+          - name: tests
+            image: my-api:test
+            command: ["sleep", "infinity"]
+    '''
+  }
+}
+agent none     // no global agent: set one on each stage
+
+@@@ Environment variables and credentials
+Pass configuration with environment { }; fetch secrets from the credentials store, which masks them in the log.
+@cli
+pipeline {
+  agent any
+  environment {
+    APP_ENV   = 'test'
+    API_TOKEN = credentials('api-token-id')       // secret text: available as $API_TOKEN
+  }
+  stages {
+    stage('Deploy') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'registry', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+          sh 'echo "$PASS" | docker login -u "$USER" --password-stdin registry.example.com'
+        }
+      }
+    }
+  }
+}
+! Use single quotes with sh so the shell, not Groovy, expands the secret. Groovy string interpolation can leak a secret into the log.
+
+@@@ Parameters
+Let people choose values when they start a build.
+@cli
+pipeline {
+  agent any
+  parameters {
+    string(name: 'BRANCH', defaultValue: 'main', description: 'Branch to test')
+    choice(name: 'ENV', choices: ['qa', 'staging'], description: 'Target environment')
+    booleanParam(name: 'RUN_SLOW', defaultValue: false, description: 'Include slow tests')
+  }
+  stages {
+    stage('Test') {
+      steps {
+        sh "pytest -q --env ${params.ENV} ${params.RUN_SLOW ? '' : '-m \"not slow\"'}"
+      }
+    }
+  }
+}
+
+@@@ post conditions
+Actions that run after the stages, depending on the result.
+@cli
+post {
+  always   { junit 'reports/*.xml'; archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true }
+  success  { echo 'All green' }
+  failure  { mail to: 'qa@example.com', subject: "FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}", body: "${env.BUILD_URL}" }
+  unstable { echo 'Tests failed but the build ran' }
+  changed  { echo 'Status changed since the last build' }
+  cleanup  { cleanWs() }
+}
+
+@@@ when: run a stage only sometimes
+Conditions on branch, parameters, environment or your own expression.
+@cli
+stage('Deploy to staging') {
+  when {
+    allOf {
+      branch 'main'
+      not { changeRequest() }                     // not for pull request builds
+      expression { params.ENV == 'staging' }
+    }
+  }
+  steps { sh './deploy.sh staging' }
+}
+
+@@@ Parallel stages and matrix
+Run independent work at the same time to shorten the build.
+@cli
+stage('Tests') {
+  parallel {
+    stage('Unit')        { steps { sh 'pytest tests/unit' } }
+    stage('API')         { steps { sh 'pytest tests/api' } }
+    stage('UI (Chrome)') { steps { sh 'pytest tests/ui --browser chrome' } }
+  }
+}
+
+stage('Cross-browser') {
+  matrix {
+    axes {
+      axis { name 'BROWSER'; values 'chrome', 'firefox', 'edge' }
+      axis { name 'OS';      values 'linux', 'windows' }
+    }
+    stages { stage('Run') { steps { sh "pytest tests/ui --browser ${BROWSER}" } } }
+  }
+}
+
+@@@ Triggers and options
+Start builds automatically and protect the server from stuck or overlapping runs.
+@cli
+pipeline {
+  agent any
+  triggers {
+    cron('H 2 * * *')                  // nightly (H spreads the load)
+    pollSCM('H/5 * * * *')             // check the repository every ~5 minutes
+    upstream(upstreamProjects: 'build-app', threshold: hudson.model.Result.SUCCESS)
+  }
+  options {
+    timeout(time: 30, unit: 'MINUTES')
+    disableConcurrentBuilds()
+    buildDiscarder(logRotator(numToKeepStr: '30'))
+    retry(1)
+    timestamps()
+  }
+  stages { stage('Test') { steps { sh 'pytest -q' } } }
+}
+! Prefer a webhook from GitHub or GitLab to polling. It is faster and puts less load on both systems.
+
+@@@ Test reports and artifacts
+Publish results so Jenkins shows trends and lets people open the details.
+@cli
+steps {
+  sh 'pytest -q --junitxml=results.xml --html=report.html --self-contained-html'
+}
+post {
+  always {
+    junit testResults: 'results.xml', allowEmptyResults: false
+    archiveArtifacts artifacts: 'report.html, screenshots/**', fingerprint: true
+    publishHTML(target: [reportDir: '.', reportFiles: 'report.html', reportName: 'Test report'])   // HTML Publisher plugin
+  }
+}
+
+@@@ Scripted pipeline and Groovy basics
+The older, more flexible syntax. Declarative covers most needs; scripted is plain Groovy with node and stage.
+@cli
+node('linux') {
+  stage('Checkout') { checkout scm }
+  stage('Test') {
+    try {
+      sh 'pytest -q'
+    } catch (err) {
+      currentBuild.result = 'FAILURE'
+      throw err
+    } finally {
+      junit 'results.xml'
+    }
+  }
+}
+
+// inside a declarative stage, use a script block for loops and logic
+steps {
+  script {
+    for (env in ['qa', 'staging']) { echo "deploying to ${env}" }
+  }
+}
+
+@@@ Shared libraries
+Reuse pipeline code across many repositories.
+@cli
+// vars/runTests.groovy in the shared library repository
+def call(Map cfg = [:]) {
+  sh "pytest -q ${cfg.markers ? '-m ' + cfg.markers : ''} --junitxml=results.xml"
+  junit 'results.xml'
+}
+
+// Jenkinsfile in any project
+@Library('team-lib@main') _
+pipeline {
+  agent any
+  stages { stage('Test') { steps { runTests(markers: 'smoke') } } }
+}
+
+@@@ Jenkins REST API and CLI
+Trigger and inspect builds from scripts. Use an API token, and fetch a crumb if CSRF protection is on.
+@cli
+JENKINS=https://jenkins.example.com
+AUTH="user:API_TOKEN"
+
+curl -s -u "$AUTH" "$JENKINS/job/my-pipeline/lastBuild/api/json?tree=number,result,building"
+curl -s -u "$AUTH" -X POST "$JENKINS/job/my-pipeline/build"
+curl -s -u "$AUTH" -X POST "$JENKINS/job/my-pipeline/buildWithParameters" --data "BRANCH=main&ENV=qa"
+curl -s -u "$AUTH" "$JENKINS/job/my-pipeline/lastBuild/consoleText" | tail -n 50
+
+# CSRF crumb (needed for some POST requests with a password, not with an API token)
+curl -s -u "$AUTH" "$JENKINS/crumbIssuer/api/json"
+
+java -jar jenkins-cli.jar -s "$JENKINS" -auth "$AUTH" build my-pipeline -p BRANCH=main -s
+
+@@@ Configuration as code (JCasC)
+Describe the Jenkins controller itself in YAML so it can be rebuilt and reviewed like any other code.
+@cli
+jenkins:
+  systemMessage: "QA Jenkins"
+  numExecutors: 0                  # run builds only on agents
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: admin
+          password: ${ADMIN_PASSWORD}
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - string:
+              scope: GLOBAL
+              id: api-token-id
+              secret: ${API_TOKEN}
+
+@@@ Troubleshooting Jenkins builds
+Symptoms and where to look first.
+@txt
+Build stuck in the queue          no agent matches the label, all executors busy, agent offline
+Works locally, fails in Jenkins   different tool versions, missing environment variables, running as another user,
+                                  a clean workspace without cached files; print versions at the start of the build
+"No such file" in sh              the step runs in the workspace root; use dir('subfolder') { ... } to change folder
+Secrets show as ****              expected: Jenkins masks them. Do not echo them or write them to artifacts
+Flaky test failures               do not just retry forever: record, quarantine with an owner and fix; fail on new flakes
+Pipeline syntax errors            use the Pipeline Syntax snippet generator and "Replay" to edit and retry a run
+Out of disk                       old builds and workspaces: set buildDiscarder and clean workspaces
+
+@@@ Jenkins best practices for test pipelines
+Habits that keep pipelines fast and trustworthy.
+@txt
+Pipeline as code     Jenkinsfile in the repository, reviewed like code
+Keep the controller light   run builds on agents (ideally ephemeral containers), 0 executors on the controller
+Fast feedback        smoke and unit tests first, slow suites later or in parallel; fail fast
+Reproducible         pin tool and image versions, same container locally and in CI
+Secure               secrets only through credentials, least-privilege tokens, restrict who can edit pipelines
+Observable           publish JUnit results and artifacts, keep history, alert the right team on failure
+Maintainable         shared libraries for repeated steps, short timeouts so nothing hangs forever

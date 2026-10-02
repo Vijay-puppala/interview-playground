@@ -594,7 +594,7 @@
     if (entry.code[lang]) return { block: entry.code[lang], lang, fallback: false };
     return { block: entry.code.js, lang: "ts", fallback: true };   // JavaScript is valid TypeScript
   }
-  const SEC_ICON = [["Docker", "docker"], ["Kubernetes", "kubernetes"], ["AWS", "aws"], ["Azure", "azure"], ["Terraform", "terraform"], ["Git", "git"], ["Data governance", "governance"], ["SQL", "database"]];
+  const SEC_ICON = [["Docker", "docker"], ["Kubernetes", "kubernetes"], ["AWS", "aws"], ["Azure", "azure"], ["Terraform", "terraform"], ["Git", "git"], ["Data governance", "governance"], ["MongoDB", "mongodb"], ["Kafka", "kafka"], ["Jenkins", "jenkins"], ["SQL", "database"]];
   const secIcon = (title, size = 15) => { const hit = SEC_ICON.find(([p]) => title.startsWith(p)); return hit ? ico(hit[1], size) + " " : ""; };
   const slug = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 

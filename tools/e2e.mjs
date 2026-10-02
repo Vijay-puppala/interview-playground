@@ -205,7 +205,7 @@ await check("cheat sheet: lists every entry and follows the language switch", as
   await page.goto(base + "#cheatsheet");
   await setLang("py");
   await page.waitForSelector(".cs-entry");
-  eq(await page.locator(".cs-entry").count(), 283, "entries");
+  eq(await page.locator(".cs-entry").count(), 329, "entries");
   if (!(await page.textContent('.cs-entry[data-key="variables-and-types"] pre.code')).includes("type(name).__name__")) throw new Error("python code missing");
   await setLang("js");
   if (!(await page.textContent('.cs-entry[data-key="variables-and-types"] pre.code')).includes("typeof")) throw new Error("javascript code missing");
@@ -222,7 +222,7 @@ await check("cheat sheet: search and section filter", async () => {
   await page.waitForFunction(() => document.querySelectorAll(".cs-entry").length === 8);
   eq(await page.locator(".cs-section").count(), 1, "one section heading");
   await page.click('#csChips [data-sec="all"]');
-  await page.waitForFunction(() => document.querySelectorAll(".cs-entry").length === 283);
+  await page.waitForFunction(() => document.querySelectorAll(".cs-entry").length === 329);
 });
 
 await check("cheat sheet: run a Python example", async () => {
@@ -480,6 +480,26 @@ await check("cheat sheet: Data governance (concepts, runnable SQL quality checks
   await setLang("js");
   eq(await page.getAttribute('.cs-entry[data-key="scan-text-for-sensitive-data"]', "data-lang"), "js", "JavaScript recipe");
   await page.click('#csChips [data-sec="all"]');
+  await setLang("py");
+});
+
+await check("cheat sheet: MongoDB, Kafka and Jenkins sections (highlighted, copy-only, brand icons, searchable)", async () => {
+  await page.goto(base + "#cheatsheet");
+  await setLang("ts");
+  for (const [sec, min] of [["mongodb", 10], ["kafka", 10], ["jenkins", 10]]) {
+    await page.click(`#csChips [data-sec="${sec}"]`);
+    await page.waitForSelector(".cs-entry");
+    eq((await page.locator(".cs-entry").count()) >= min, true, sec + " entries");
+    eq(await page.locator('.cs-entry [data-act="run"]').count(), 0, sec + " has no Run button");
+    if ((await page.locator("pre.code [class^=tok-]").count()) < 5) throw new Error(sec + ": highlighting missing");
+  }
+  await page.click('#csChips [data-sec="all"]');
+  await page.fill("#csSearch", "consumer group");
+  await page.waitForSelector('.cs-entry[data-lang="cli"], .cs-entry[data-lang="txt"]');
+  await page.fill("#csSearch", "Jenkinsfile");
+  await page.waitForSelector('.cs-entry[data-lang="cli"]');
+  await page.fill("#csSearch", "");
+  eq((await page.locator("#csChips svg").count()) >= 12, true, "brand icons in the section list");
   await setLang("py");
 });
 

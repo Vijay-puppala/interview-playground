@@ -13,7 +13,7 @@ solution and an explanation you reveal only when you ask for it.
 | Language switch | Python · JavaScript · TypeScript (header, top right) |
 | Solve in the browser | Write code, press **Run**, get checked against the examples (Python via [Pyodide](https://pyodide.org), JS natively, TS transpiled in the browser) |
 | Solution on demand | **Reveal solution & explanation** keeps the answer hidden until clicked; includes *Run this solution* |
-| Cheat sheet | 283 concepts and methods: examples side by side in Python, JavaScript and TypeScript, 59 SQL entries that run on PostgreSQL, 70 DevOps entries (Docker, Kubernetes, AWS, Azure, Terraform, Git & GitHub) to copy into your terminal, and 43 Data governance entries (concepts, GDPR / HIPAA / CCPA, runnable data-quality, PII, masking and lineage examples): strings, lists, dicts, functions, classes, errors, regex, dates, async, typing, testing and SDET automation. Search, copy, **Run** each example, or open it in the Playground |
+| Cheat sheet | 329 concepts and methods: examples side by side in Python, JavaScript and TypeScript, 59 SQL entries that run on PostgreSQL, 70 DevOps entries (Docker, Kubernetes, AWS, Azure, Terraform, Git & GitHub) to copy into your terminal, 43 Data governance entries (concepts, GDPR / HIPAA / CCPA, runnable data-quality, PII, masking and lineage examples), and 46 MongoDB, Kafka and Jenkins entries (shell, config and Jenkinsfile examples to copy): strings, lists, dicts, functions, classes, errors, regex, dates, async, typing, testing and SDET automation. Search, copy, **Run** each example, or open it in the Playground |
 | Playground | Run any program in any of the three languages; opens with a `Hello, Vijay!` starter; Python `input()` supported; **Stop** button for runaway loops |
 | SQL | 50 patterns x 10 questions (500) with theory, pitfalls, think / hint / approach / solution / explanation revealed step by step. **Run** executes queries on a real PostgreSQL ([PGlite](https://pglite.dev), WebAssembly) in your browser against a shared sample database; every run is rolled back, so data never drifts |
 | Progress | Solved problems are remembered in your browser (`localStorage`) |
@@ -127,7 +127,7 @@ console.log(JSON.stringify(" a, b ".split(",").map((p) => p.trim())));
 ```
 
 `@txt` blocks hold plain-text concepts and checklists (`content/cheatsheet/09_data_governance.txt`); like `@cli` they are view-only and shown for every language.
-`@cli` blocks (shell, YAML, HCL, JSON) are used by the DevOps sections in `content/cheatsheet/08_devops.txt`: they are always view-only, shown for every
+`@cli` blocks (shell, YAML, HCL, JSON) are used by the DevOps sections in `content/cheatsheet/08_devops.txt` and `10_mongodb_kafka_jenkins.txt`: they are always view-only, shown for every
 language and highlighted as commands / config; there is no expected output because they need real tools and credentials.
 
 Every entry needs a `@py` and a `@js` block (SQL entries use `@sql`, DevOps entries `@cli`); `@ts` is optional (the site falls back to the JavaScript code).
