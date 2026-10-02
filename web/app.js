@@ -590,10 +590,11 @@
   function csBlock(entry, lang) {
     if (entry.code.sql) return { block: entry.code.sql, lang: "sql", fallback: false };   // SQL entries are shown for every language
     if (entry.code.cli) return { block: entry.code.cli, lang: "cli", fallback: false };   // so are the DevOps (shell / YAML / HCL) entries
+    if (entry.code.txt) return { block: entry.code.txt, lang: "txt", fallback: false };   // and the plain-text concept entries
     if (entry.code[lang]) return { block: entry.code[lang], lang, fallback: false };
     return { block: entry.code.js, lang: "ts", fallback: true };   // JavaScript is valid TypeScript
   }
-  const SEC_ICON = [["Docker", "docker"], ["Kubernetes", "kubernetes"], ["AWS", "aws"], ["Azure", "azure"], ["Terraform", "terraform"], ["Git", "git"], ["SQL", "database"]];
+  const SEC_ICON = [["Docker", "docker"], ["Kubernetes", "kubernetes"], ["AWS", "aws"], ["Azure", "azure"], ["Terraform", "terraform"], ["Git", "git"], ["Data governance", "governance"], ["SQL", "database"]];
   const secIcon = (title, size = 15) => { const hit = SEC_ICON.find(([p]) => title.startsWith(p)); return hit ? ico(hit[1], size) + " " : ""; };
   const slug = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
@@ -636,10 +637,10 @@
   function csCard(entry, lang) {
     const { block, lang: codeLang, fallback } = csBlock(entry, lang);
     const key = slug(entry.title);
-    const hl = highlight(block.code, codeLang === "py" ? "py" : codeLang === "sql" || codeLang === "cli" ? codeLang : "js");
+    const hl = highlight(block.code, codeLang === "py" ? "py" : codeLang === "sql" || codeLang === "cli" || codeLang === "txt" ? codeLang : "js");
     return `<article class="card cs-entry" data-key="${key}" data-lang="${codeLang}" id="cs-${key}">
       <div class="card-head"><h3>${esc(entry.title)}</h3>
-        <span class="status">${codeLang === "sql" ? '<span class="badge" title="Runs on PostgreSQL in your browser">PostgreSQL</span> ' : ""}${fallback ? '<span class="badge" title="No TypeScript-specific version: the JavaScript code is valid TypeScript">same as JavaScript</span> ' : ""}${block.run ? "" : codeLang === "cli" ? '<span class="badge" title="Copy it into your own terminal or editor: these commands need the real tool and credentials">copy &amp; run locally</span>' : `<span class="badge" title="${codeLang === "sql" ? "Uses a statement the sandbox cannot run, or output that depends on the data size" : "Needs Node.js, a network, or a real browser"}, so it cannot run on this page">view only</span>`}</span></div>
+        <span class="status">${codeLang === "sql" ? '<span class="badge" title="Runs on PostgreSQL in your browser">PostgreSQL</span> ' : ""}${fallback ? '<span class="badge" title="No TypeScript-specific version: the JavaScript code is valid TypeScript">same as JavaScript</span> ' : ""}${block.run ? "" : codeLang === "txt" ? '<span class="badge" title="A concept or checklist: nothing to run">concept</span>' : codeLang === "cli" ? '<span class="badge" title="Copy it into your own terminal or editor: these commands need the real tool and credentials">copy &amp; run locally</span>' : `<span class="badge" title="${codeLang === "sql" ? "Uses a statement the sandbox cannot run, or output that depends on the data size" : "Needs Node.js, a network, or a real browser"}, so it cannot run on this page">view only</span>`}</span></div>
       <div class="card-body">
         ${entry.desc ? `<p style="margin-top:0">${esc(entry.desc)}</p>` : ""}
         <pre class="code">${hl}</pre>

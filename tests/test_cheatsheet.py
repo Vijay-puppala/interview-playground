@@ -44,6 +44,23 @@ def test_cli_blocks_are_cli_only_and_never_runnable():
     assert n >= 60
 
 
+def test_txt_blocks_are_txt_only_and_never_runnable():
+    n = 0
+    for sec in cheatsheet.load():
+        for e in sec["entries"]:
+            if "txt" in e["code"]:
+                n += 1
+                assert set(e["code"]) == {"txt"}, e["title"]
+                assert e["code"]["txt"]["run"] is False and not e["code"]["txt"]["out"], e["title"]
+    assert n >= 10
+
+
+def test_data_governance_sections_exist():
+    titles = {s["title"] for s in cheatsheet.load()}
+    assert {"Data governance · Concepts", "Data governance · Profiling and quality", "Data governance · Classification and privacy",
+            "Data governance · Lineage and metadata", "Data governance · Code recipes"} <= titles
+
+
 def test_devops_sections_exist():
     titles = {s["title"] for s in cheatsheet.load()}
     assert {"Docker", "Kubernetes", "AWS", "Azure", "Terraform", "Git & GitHub"} <= titles
@@ -52,7 +69,7 @@ def test_devops_sections_exist():
 def test_every_entry_covers_python_and_javascript():
     for sec in cheatsheet.load():
         for e in sec["entries"]:
-            if "sql" in e["code"] or "cli" in e["code"]:      # SQL and DevOps entries are language independent
+            if set(e["code"]) & {"sql", "cli", "txt"}:      # SQL, DevOps and concept entries are language independent
                 continue
             assert {"py", "js"} <= set(e["code"]), f"{sec['title']} / {e['title']} needs py and js"
 

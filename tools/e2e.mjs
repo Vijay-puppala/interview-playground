@@ -205,7 +205,7 @@ await check("cheat sheet: lists every entry and follows the language switch", as
   await page.goto(base + "#cheatsheet");
   await setLang("py");
   await page.waitForSelector(".cs-entry");
-  eq(await page.locator(".cs-entry").count(), 240, "entries");
+  eq(await page.locator(".cs-entry").count(), 283, "entries");
   if (!(await page.textContent('.cs-entry[data-key="variables-and-types"] pre.code')).includes("type(name).__name__")) throw new Error("python code missing");
   await setLang("js");
   if (!(await page.textContent('.cs-entry[data-key="variables-and-types"] pre.code')).includes("typeof")) throw new Error("javascript code missing");
@@ -222,7 +222,7 @@ await check("cheat sheet: search and section filter", async () => {
   await page.waitForFunction(() => document.querySelectorAll(".cs-entry").length === 8);
   eq(await page.locator(".cs-section").count(), 1, "one section heading");
   await page.click('#csChips [data-sec="all"]');
-  await page.waitForFunction(() => document.querySelectorAll(".cs-entry").length === 240);
+  await page.waitForFunction(() => document.querySelectorAll(".cs-entry").length === 283);
 });
 
 await check("cheat sheet: run a Python example", async () => {
@@ -458,6 +458,28 @@ await check("cheat sheet: DevOps sections (Docker, Kubernetes, AWS, Azure, Terra
   await page.fill("#csSearch", "terraform apply");
   await page.waitForSelector('.cs-entry[data-lang="cli"]');
   await page.fill("#csSearch", "");
+  await setLang("py");
+});
+
+await check("cheat sheet: Data governance (concepts, runnable SQL quality checks, code recipes)", async () => {
+  await page.goto(base + "#cheatsheet");
+  await setLang("py");
+  await page.click('#csChips [data-sec="data-governance-concepts"]');
+  await page.waitForSelector('.cs-entry[data-lang="txt"]');
+  eq(await page.locator('.cs-entry[data-lang="txt"]').count() >= 10, true, "concept entries");
+  eq(await page.locator('.cs-entry [data-act="run"]').count(), 0, "concepts are not runnable");
+  await page.click('#csChips [data-sec="data-governance-profiling-and-quality"]');
+  const card = '.cs-entry[data-key="a-data-quality-scorecard"]';
+  await page.waitForSelector(card);
+  eq(await page.getAttribute(card, "data-lang"), "sql", "SQL block");
+  await page.click(card + ' [data-act="run"]');
+  await page.waitForSelector(card + " .summary.ok", { timeout: 120000 });
+  await page.click('#csChips [data-sec="data-governance-code-recipes"]');
+  await page.waitForSelector('.cs-entry[data-key="scan-text-for-sensitive-data"]');
+  eq(await page.getAttribute('.cs-entry[data-key="scan-text-for-sensitive-data"]', "data-lang"), "py", "Python recipe");
+  await setLang("js");
+  eq(await page.getAttribute('.cs-entry[data-key="scan-text-for-sensitive-data"]', "data-lang"), "js", "JavaScript recipe");
+  await page.click('#csChips [data-sec="all"]');
   await setLang("py");
 });
 

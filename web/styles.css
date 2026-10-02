@@ -503,4 +503,5 @@ body[data-view="home"] .menu-btn, body[data-view="about"] .menu-btn { display: n
 /* ---- cheat-sheet section brand icons ----------------------------------------------------------- */
 .plist .t svg { vertical-align: -3px; margin-right: 4px; }
 .plist button[aria-current="true"] .t svg { color: inherit !important; }
+.cs-entry[data-lang="txt"] pre.code { white-space: pre-wrap; font-family: var(--font-mono); line-height: 1.55; }
 .cs-section svg { vertical-align: -4px; margin-right: 8px; }

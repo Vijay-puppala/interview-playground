@@ -1,7 +1,7 @@
 // Runs the SQL content on PostgreSQL (PGlite, the engine the website uses) through the same sql_engine.js module.
 //   node tools/check_sql.mjs                        every solution of the 50 patterns must run; the SQL cheat-sheet
 //                                                   examples must print exactly their documented output
-//   node tools/check_sql.mjs --fill-cheatsheet      rewrite the "=>" output lines of content/cheatsheet/07_sql.txt
+//   node tools/check_sql.mjs --fill-cheatsheet      rewrite the "=>" output lines of every @sql block in content/cheatsheet/*.txt
 //                                                   from a real run (then review the diff)
 import fs from "node:fs";
 import path from "node:path";
@@ -17,30 +17,35 @@ const sqlDir = path.join(root, "content/sql");
 const setup = fs.readFileSync(path.join(sqlDir, "schema.sql"), "utf8") + "\n" + fs.readFileSync(path.join(sqlDir, "seed.sql"), "utf8");
 const engine = await createEngine(PGlite, setup);
 const substitute = (sql, params) => Object.entries(params || {}).reduce((s, [k, v]) => s.replace(new RegExp("(?<![:\\w]):" + k + "\\b", "g"), v), sql);
-const cheatFile = path.join(root, "content/cheatsheet/07_sql.txt");
+const cheatDir = path.join(root, "content/cheatsheet");
+const cheatFiles = fs.readdirSync(cheatDir).filter((f) => f.endsWith(".txt")).map((f) => path.join(cheatDir, f))
+  .filter((f) => /^@sql$/m.test(fs.readFileSync(f, "utf8")));
 
 if (process.argv.includes("--fill-cheatsheet")) {
-  const lines = fs.readFileSync(cheatFile, "utf8").split("\n");
-  const out = [];
-  let i = 0, filled = 0;
-  while (i < lines.length) {
-    if (lines[i] !== "@sql") { out.push(lines[i++]); continue; }
-    out.push(lines[i++]);
-    const start = i;
-    while (i < lines.length && !/^@@/.test(lines[i])) i++;
-    const body = lines.slice(start, i).filter((l) => !l.startsWith("=>"));
-    let last = body.length - 1;
-    while (last >= 0 && (body[last].trim() === "" || body[last].startsWith("! "))) last--;
-    // a "! note" can sit in the middle of the block text; the code ends at the last non-note, non-blank line
-    const codeEnd = last + 1;
-    const code = body.slice(0, codeEnd).filter((l) => !l.startsWith("! ")).join("\n");
-    const res = await engine.run(code, { maxRows: 1000 });
-    if (!res.ok) throw new Error("cheat sheet SQL failed: " + res.error + "\n" + code);
-    const text = resultToText(res).split("\n").map((l) => "=> " + l);
-    out.push(...body.slice(0, codeEnd), ...text, ...body.slice(codeEnd));
-    filled++;
+  let filled = 0;
+  for (const cheatFile of cheatFiles) {
+    const lines = fs.readFileSync(cheatFile, "utf8").split("\n");
+    const out = [];
+    let i = 0;
+    while (i < lines.length) {
+      if (lines[i] !== "@sql") { out.push(lines[i++]); continue; }
+      out.push(lines[i++]);
+      const start = i;
+      while (i < lines.length && !/^@/.test(lines[i])) i++;
+      const body = lines.slice(start, i).filter((l) => !l.startsWith("=>"));
+      let last = body.length - 1;
+      while (last >= 0 && (body[last].trim() === "" || body[last].startsWith("! "))) last--;
+      // a "! note" can sit in the middle of the block text; the code ends at the last non-note, non-blank line
+      const codeEnd = last + 1;
+      const code = body.slice(0, codeEnd).filter((l) => !l.startsWith("! ")).join("\n");
+      const res = await engine.run(code, { maxRows: 1000 });
+      if (!res.ok) throw new Error("cheat sheet SQL failed: " + res.error + "\n" + code);
+      const text = resultToText(res).split("\n").map((l) => "=> " + l);
+      out.push(...body.slice(0, codeEnd), ...text, ...body.slice(codeEnd));
+      filled++;
+    }
+    fs.writeFileSync(cheatFile, out.join("\n"));
   }
-  fs.writeFileSync(cheatFile, out.join("\n"));
   console.log(`filled expected output for ${filled} SQL cheat-sheet examples`);
   await engine.close();
   process.exit(0);
