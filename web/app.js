@@ -589,9 +589,12 @@
   /** The code block to show for the current language; TypeScript falls back to the JavaScript block. */
   function csBlock(entry, lang) {
     if (entry.code.sql) return { block: entry.code.sql, lang: "sql", fallback: false };   // SQL entries are shown for every language
+    if (entry.code.cli) return { block: entry.code.cli, lang: "cli", fallback: false };   // so are the DevOps (shell / YAML / HCL) entries
     if (entry.code[lang]) return { block: entry.code[lang], lang, fallback: false };
     return { block: entry.code.js, lang: "ts", fallback: true };   // JavaScript is valid TypeScript
   }
+  const SEC_ICON = [["Docker", "docker"], ["Kubernetes", "kubernetes"], ["AWS", "aws"], ["Azure", "azure"], ["Terraform", "terraform"], ["Git", "git"], ["SQL", "database"]];
+  const secIcon = (title, size = 15) => { const hit = SEC_ICON.find(([p]) => title.startsWith(p)); return hit ? ico(hit[1], size) + " " : ""; };
   const slug = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
   function csMatches(entry, lang) {
@@ -606,7 +609,7 @@
     const counts = CS_DATA.map((s) => s.entries.filter((e) => csMatches(e, lang)).length);
     const shown = counts.reduce((a, b) => a + b, 0);
     $("#csChips").innerHTML = `<li><button data-sec="all" ${CS.section === "all" ? 'aria-current="true"' : ""}><span class="t">All sections</span><span class="count">${shown}</span></button></li>`
-      + CS_DATA.map((s, i) => `<li><button data-sec="${slug(s.title)}" ${CS.section === slug(s.title) ? 'aria-current="true"' : ""}><span class="t">${esc(s.title)}</span><span class="count">${counts[i]}</span></button></li>`).join("");
+      + CS_DATA.map((s, i) => `<li><button data-sec="${slug(s.title)}" ${CS.section === slug(s.title) ? 'aria-current="true"' : ""}><span class="t">${secIcon(s.title)}${esc(s.title)}</span><span class="count">${counts[i]}</span></button></li>`).join("");
     $("#sideSub").textContent = CS.query ? `${shown} of ${total}` : `${total} entries`;
   }
 
@@ -623,7 +626,7 @@
         Switch the language at the top right. Press <b>Run</b> to execute an example in your browser.</p>
       <div class="muted" id="csCount">${shown} of ${total} entries</div>
       <div id="csBody">${sections.length ? sections.map(({ sec, entries }) => `
-        <h2 class="cs-section" id="sec-${slug(sec.title)}">${esc(sec.title)}</h2>
+        <h2 class="cs-section" id="sec-${slug(sec.title)}">${secIcon(sec.title, 22)}${esc(sec.title)}</h2>
         ${entries.map((e) => csCard(e, lang)).join("")}`).join("") : `<div class="card"><div class="card-body muted">Nothing matches “${esc(CS.query)}”.</div></div>`}
       </div>`;
     view.cheatsheet.onclick = csClick;
@@ -633,10 +636,10 @@
   function csCard(entry, lang) {
     const { block, lang: codeLang, fallback } = csBlock(entry, lang);
     const key = slug(entry.title);
-    const hl = highlight(block.code, codeLang === "py" ? "py" : codeLang === "sql" ? "sql" : "js");
+    const hl = highlight(block.code, codeLang === "py" ? "py" : codeLang === "sql" || codeLang === "cli" ? codeLang : "js");
     return `<article class="card cs-entry" data-key="${key}" data-lang="${codeLang}" id="cs-${key}">
       <div class="card-head"><h3>${esc(entry.title)}</h3>
-        <span class="status">${codeLang === "sql" ? '<span class="badge" title="Runs on PostgreSQL in your browser">PostgreSQL</span> ' : ""}${fallback ? '<span class="badge" title="No TypeScript-specific version: the JavaScript code is valid TypeScript">same as JavaScript</span> ' : ""}${block.run ? "" : '<span class="badge" title="${codeLang === "sql" ? "Needs a statement the sandbox cannot run (or output that depends on the data size)" : "Needs Node.js, a network, or a real browser"}, so it cannot run on this page">view only</span>'}</span></div>
+        <span class="status">${codeLang === "sql" ? '<span class="badge" title="Runs on PostgreSQL in your browser">PostgreSQL</span> ' : ""}${fallback ? '<span class="badge" title="No TypeScript-specific version: the JavaScript code is valid TypeScript">same as JavaScript</span> ' : ""}${block.run ? "" : codeLang === "cli" ? '<span class="badge" title="Copy it into your own terminal or editor: these commands need the real tool and credentials">copy &amp; run locally</span>' : `<span class="badge" title="${codeLang === "sql" ? "Uses a statement the sandbox cannot run, or output that depends on the data size" : "Needs Node.js, a network, or a real browser"}, so it cannot run on this page">view only</span>`}</span></div>
       <div class="card-body">
         ${entry.desc ? `<p style="margin-top:0">${esc(entry.desc)}</p>` : ""}
         <pre class="code">${hl}</pre>

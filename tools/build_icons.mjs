@@ -20,7 +20,7 @@ const out = {};
 for (const [key, slug, hex] of [
   ["docker", "docker", "#2496ED"], ["kubernetes", "kubernetes", "#326CE5"], ["postgresql", "postgresql", "#4169E1"], ["snowflake", "snowflake", "#29B5E8"],
   ["selenium", "selenium", "#43B02A"], ["jenkins", "jenkins", "#D24939"], ["postman", "postman", "#FF6C37"], ["python", "python", "#3776AB"],
-  ["jira", "jira", "#0052CC"], ["confluence", "confluence", "#0052CC"], ["java", "openjdk", "#ED8B00"], ["hitachi", "hitachi", "#E60027"],
+  ["jira", "jira", "#0052CC"], ["terraform", "terraform", "#844FBA"], ["git", "git", "#F05032"], ["confluence", "confluence", "#0052CC"], ["java", "openjdk", "#ED8B00"], ["hitachi", "hitachi", "#E60027"],
 ]) out[key] = { d: siPath(slug), color: hex };
 for (const [key, name, hex] of [
   ["aws", "mdiAws", "#FF9900"], ["azure", "mdiMicrosoftAzure", "#0078D4"], ["csharp", "mdiLanguageCsharp", "#9B4F96"],

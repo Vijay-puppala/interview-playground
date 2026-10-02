@@ -30,10 +30,34 @@
     return out + esc(code.slice(last));
   }
 
+  // shell / YAML / HCL / JSON used by the DevOps cheat sheets (Docker, Kubernetes, AWS, Azure, Terraform, Git)
+  const CLI_TOOLS = new Set("docker kubectl helm aws az terraform git gh curl jq sudo npm pip pytest export echo cd cat ls mkdir chmod".split(" "));
+  const CLI_KW = new Set("resource variable output provider module data locals terraform backend required_providers required_version lifecycle import for_each count depends_on dynamic FROM RUN CMD COPY ADD ENV ARG WORKDIR EXPOSE USER VOLUME ENTRYPOINT HEALTHCHECK AS true false null".split(" "));
+  const CLI_RE = /(^[ \t]*\/\/[^\n]*|(?:^|[ \t])#[^\n]*)|("(?:\\.|[^"\\\n])*"|'[^'\n]*')|(\$\{[^}\n]*\}|\$[A-Za-z_]\w*)|((?<=[ \t])--?[A-Za-z][\w-]*)|(\b\d[\w.]*\b)|([A-Za-z_][\w./@-]*)(:(?=\s|$))?/gm;
+
+  function highlightCli(code) {
+    let out = "", last = 0, m;
+    CLI_RE.lastIndex = 0;
+    while ((m = CLI_RE.exec(code))) {
+      out += esc(code.slice(last, m.index));
+      last = m.index + m[0].length;
+      let cls = null;
+      if (m[1]) cls = "c";
+      else if (m[2]) cls = "s";
+      else if (m[3]) cls = "d";
+      else if (m[4]) cls = "t";
+      else if (m[5]) cls = "n";
+      else if (m[6]) cls = m[7] ? "t" : CLI_KW.has(m[6]) ? "k" : CLI_TOOLS.has(m[6]) ? "f" : null;
+      out += cls ? `<span class="tok-${cls}">${esc(m[0])}</span>` : esc(m[0]);
+    }
+    return out + esc(code.slice(last));
+  }
+
   const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
   function highlight(code, lang) {
     if (lang === "sql") return highlightSql(code);
+    if (lang === "cli") return highlightCli(code);
     const re = new RegExp((lang === "py" ? COMMON.py : COMMON.js).source, "g");
     const kw = KEYWORDS[lang] || KEYWORDS.js;
     let out = "";

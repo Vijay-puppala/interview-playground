@@ -1,0 +1,928 @@
+@@ Docker
+
+@@@ Images and containers
+An image is a read-only template; a container is a running (or stopped) instance of it. Most day-to-day commands are about starting, listing and removing containers.
+@cli
+docker pull nginx:1.27              # download an image
+docker run -d --name web -p 8080:80 nginx:1.27   # start detached, host 8080 -> container 80
+docker ps                           # running containers (add -a for stopped ones too)
+docker stop web && docker rm web    # stop, then delete the container
+docker images                       # local images
+docker rmi nginx:1.27               # delete an image
+! Pin a version tag (nginx:1.27). The default tag, latest, changes over time and makes builds hard to reproduce.
+
+@@@ docker run options you use every day
+Flags that control how a container starts: environment, ports, volumes, resource limits and cleanup.
+@cli
+docker run --rm -it ubuntu:24.04 bash          # interactive shell, container deleted on exit
+docker run -d --name api \
+  -e DB_URL=postgres://db:5432/app \
+  -p 3000:3000 \
+  -v "$PWD/data:/data" \
+  --memory 512m --cpus 1 \
+  --restart unless-stopped \
+  my-api:1.0
+! -p is HOST:CONTAINER. -v is HOST_PATH:CONTAINER_PATH. Mixing the order is the most common beginner mistake.
+
+@@@ Dockerfile basics
+A Dockerfile lists the steps that build an image. Each instruction adds a cached layer, so put the things that change least at the top.
+@cli
+FROM python:3.12-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt   # cached until requirements.txt changes
+COPY . .
+ENV APP_ENV=test
+EXPOSE 8000
+USER 1000
+CMD ["python", "-m", "pytest", "-q"]
+! COPY the dependency file and install first, then COPY the source. Otherwise every code change reinstalls every dependency.
+
+@@@ Multi-stage builds
+Build in a fat image, then copy only the result into a small runtime image.
+@cli
+FROM node:22 AS build
+WORKDIR /src
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM nginx:1.27-alpine
+COPY --from=build /src/dist /usr/share/nginx/html
+! The final image holds only what the last FROM contains: no compilers, no source, a smaller attack surface.
+
+@@@ Build, tag and push
+Name an image with registry/repository:tag, then push it so other machines (and CI) can pull it.
+@cli
+docker build -t my-api:1.0 .
+docker tag my-api:1.0 registry.example.com/team/my-api:1.0
+docker login registry.example.com
+docker push registry.example.com/team/my-api:1.0
+docker build --no-cache -t my-api:dev .      # ignore the layer cache
+docker build -f Dockerfile.test -t my-api:test .   # use a different Dockerfile
+
+@@@ Volumes and bind mounts
+Containers lose their files when removed. Volumes (managed by Docker) and bind mounts (a host folder) keep data.
+@cli
+docker volume create pgdata
+docker run -d --name db -v pgdata:/var/lib/postgresql/data -e POSTGRES_PASSWORD=secret postgres:16
+docker run --rm -v "$PWD":/work -w /work node:22 npm test    # bind mount your project
+docker volume ls
+docker volume rm pgdata
+! A named volume (pgdata) survives docker rm. Use it for databases; use bind mounts for source code you are editing.
+
+@@@ Networks
+Containers on the same user-defined network reach each other by container name.
+@cli
+docker network create testnet
+docker run -d --name db --network testnet postgres:16
+docker run --rm --network testnet my-api:test \
+  pytest --db-host db           # "db" resolves to the database container
+docker network ls
+docker network inspect testnet
+! localhost inside a container means the container itself, not your laptop and not another container.
+
+@@@ Docker Compose
+Describe a multi-container application in one file and start it with a single command. Ideal for a test environment: app, database and test runner.
+@cli
+# compose.yaml
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: secret
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    ports: ["3000:3000"]
+
+# shell
+docker compose up -d --build
+docker compose ps
+docker compose logs -f api
+docker compose down -v        # stop and remove containers and volumes
+
+@@@ Inspect, logs and exec
+The three commands for finding out why a container misbehaves.
+@cli
+docker logs -f --tail 100 api        # follow the last 100 log lines
+docker exec -it api sh               # open a shell inside a running container
+docker inspect api                   # full JSON: env, mounts, IP, health
+docker inspect -f '{{.State.Health.Status}}' api
+docker stats --no-stream             # CPU and memory per container
+docker cp api:/app/report.xml .      # copy a file out
+docker top api
+
+@@@ Clean up disk space
+Stopped containers, old images and build cache add up quickly on CI machines.
+@cli
+docker system df                  # what is using space
+docker container prune            # remove stopped containers
+docker image prune -a             # remove images no container uses
+docker builder prune              # remove build cache
+docker system prune --volumes     # everything unused, including volumes (careful)
+! --volumes also deletes unused named volumes, which can be your database data. Read the prompt.
+
+@@@ Healthchecks and restart policies
+Tell Docker how to decide a container is healthy and what to do when it exits.
+@cli
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
+
+docker run -d --restart on-failure:3 my-api:1.0
+docker ps --filter health=unhealthy
+! A healthy container is not the same as a running one. Gate your tests on health, not on "started".
+
+@@ Kubernetes
+
+@@@ kubectl basics
+kubectl talks to the cluster API. The pattern is kubectl VERB RESOURCE NAME.
+@cli
+kubectl get pods                    # list pods in the current namespace
+kubectl get pods -o wide            # + node and IP
+kubectl get deploy,svc,ing          # several kinds at once
+kubectl describe pod web-7d4b9      # details + recent Events (start here when something is wrong)
+kubectl get pod web-7d4b9 -o yaml   # the full object
+kubectl delete pod web-7d4b9
+kubectl api-resources               # every resource type the cluster knows
+
+@@@ Contexts and namespaces
+A context is cluster + user + default namespace. Namespaces split one cluster into logical areas.
+@cli
+kubectl config get-contexts
+kubectl config use-context staging
+kubectl config set-context --current --namespace=qa
+kubectl get ns
+kubectl get pods -n kube-system
+kubectl get pods -A                 # all namespaces
+! Check kubectl config current-context before every apply or delete. Running a command against production by accident is a classic outage.
+
+@@@ Pod manifest
+The smallest deployable unit: one or more containers sharing a network and storage.
+@cli
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  containers:
+    - name: web
+      image: nginx:1.27
+      ports:
+        - containerPort: 80
+      resources:
+        requests: { cpu: 100m, memory: 128Mi }
+        limits:   { cpu: 500m, memory: 256Mi }
+
+@@@ Deployment
+Keeps N identical pods running and rolls out new versions gradually.
+@cli
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: web }
+  template:
+    metadata:
+      labels: { app: web }
+    spec:
+      containers:
+        - name: web
+          image: my-api:1.0
+          ports: [{ containerPort: 3000 }]
+! The selector must match the pod template labels, or the Deployment is rejected.
+
+@@@ Apply, scale and roll back
+Declare the desired state with apply, then adjust or undo it.
+@cli
+kubectl apply -f deployment.yaml
+kubectl scale deploy/web --replicas=5
+kubectl set image deploy/web web=my-api:1.1
+kubectl rollout status deploy/web
+kubectl rollout history deploy/web
+kubectl rollout undo deploy/web          # back to the previous revision
+kubectl diff -f deployment.yaml          # preview what apply would change
+
+@@@ Service
+A stable name and IP in front of changing pods. ClusterIP is internal; NodePort and LoadBalancer expose it outside.
+@cli
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  type: ClusterIP
+  selector:
+    app: web           # sends traffic to pods with this label
+  ports:
+    - port: 80         # the service port
+      targetPort: 3000 # the container port
+! A Service with no endpoints (kubectl get endpoints web is empty) usually means the selector labels do not match any pod.
+
+@@@ ConfigMap and Secret
+Keep configuration out of the image. Secrets are for sensitive values (they are base64 encoded, not encrypted by default).
+@cli
+kubectl create configmap app-config --from-literal=LOG_LEVEL=debug
+kubectl create secret generic db-pass --from-literal=password=s3cret
+
+# use them in a container spec
+env:
+  - name: LOG_LEVEL
+    valueFrom: { configMapKeyRef: { name: app-config, key: LOG_LEVEL } }
+  - name: DB_PASSWORD
+    valueFrom: { secretKeyRef: { name: db-pass, key: password } }
+! Never commit Secret manifests with real values. Use a secrets manager or sealed secrets.
+
+@@@ Probes and resources
+Readiness decides whether a pod receives traffic; liveness decides whether it is restarted; requests and limits drive scheduling.
+@cli
+containers:
+  - name: api
+    image: my-api:1.0
+    readinessProbe:
+      httpGet: { path: /ready, port: 3000 }
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    livenessProbe:
+      httpGet: { path: /health, port: 3000 }
+      periodSeconds: 10
+    resources:
+      requests: { cpu: 200m, memory: 256Mi }
+      limits:   { memory: 512Mi }
+! A pod exceeding its memory limit is killed (OOMKilled). Exceeding a CPU limit only throttles it.
+
+@@@ Debugging pods
+When a pod will not start or keeps restarting, work through these in order.
+@cli
+kubectl get pods                          # STATUS: CrashLoopBackOff, ImagePullBackOff, Pending...
+kubectl describe pod web-7d4b9            # read the Events at the bottom
+kubectl logs web-7d4b9                    # current container
+kubectl logs web-7d4b9 --previous         # the container that just crashed
+kubectl logs -l app=web --tail=50         # all pods with a label
+kubectl exec -it web-7d4b9 -- sh
+kubectl get events --sort-by=.lastTimestamp
+kubectl port-forward svc/web 8080:80      # reach it from your laptop
+kubectl top pods                          # CPU / memory (needs metrics-server)
+
+@@@ Ingress
+HTTP routing rules (host and path) in front of Services. Needs an ingress controller such as NGINX.
+@cli
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: web, port: { number: 80 } }
+
+@@@ Job and CronJob (test runs)
+Run a task to completion, once or on a schedule. A good fit for smoke tests and data checks.
+@cli
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nightly-smoke
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: tests
+              image: my-api:test
+              command: ["pytest", "-m", "smoke", "-q"]
+
+kubectl create job --from=cronjob/nightly-smoke smoke-now    # run it right now
+
+@@@ RBAC in one minute
+Who (subject) may do what (verbs) on which resources (Role), bound together by a RoleBinding.
+@cli
+kubectl create role pod-reader --verb=get,list,watch --resource=pods -n qa
+kubectl create rolebinding read-pods --role=pod-reader --user=jane -n qa
+kubectl auth can-i delete pods -n qa --as jane      # check a permission
+kubectl auth can-i --list -n qa
+
+@@ AWS
+
+@@@ AWS CLI setup and identity
+Configure credentials once, then confirm which account and role you are using before you change anything.
+@cli
+aws configure                              # access key, secret, default region
+aws configure sso                          # preferred: short-lived SSO credentials
+aws sts get-caller-identity                # who am I? (account id, ARN)
+aws --profile staging s3 ls                # use a named profile
+export AWS_PROFILE=staging AWS_REGION=eu-west-1
+! Prefer SSO or IAM roles over long-lived access keys, and never commit keys to Git.
+
+@@@ S3 (object storage)
+Buckets hold objects addressed by key. The CLI treats keys like paths.
+@cli
+aws s3 mb s3://my-test-artifacts-123              # make bucket (names are global)
+aws s3 cp report.html s3://my-test-artifacts-123/runs/42/
+aws s3 sync ./build s3://my-test-artifacts-123/site --delete
+aws s3 ls s3://my-test-artifacts-123 --recursive
+aws s3 presign s3://my-test-artifacts-123/runs/42/report.html --expires-in 3600
+aws s3 rm s3://my-test-artifacts-123 --recursive
+! Block public access on every bucket unless it really is a public website. Most S3 data leaks are public buckets.
+
+@@@ EC2 (virtual machines)
+Launch, inspect and stop instances from the command line.
+@cli
+aws ec2 describe-instances \
+  --filters Name=tag:Env,Values=qa \
+  --query 'Reservations[].Instances[].[InstanceId,State.Name,PrivateIpAddress]' \
+  --output table
+aws ec2 run-instances --image-id ami-0abc123 --instance-type t3.micro \
+  --key-name my-key --security-group-ids sg-0123 --subnet-id subnet-0456 \
+  --tag-specifications 'ResourceType=instance,Tags=[{Key=Env,Value=qa}]'
+aws ec2 stop-instances --instance-ids i-0123456789abcdef0
+aws ec2 terminate-instances --instance-ids i-0123456789abcdef0
+
+@@@ IAM policy (least privilege)
+A JSON document that allows or denies actions on resources. Start with nothing and add only what is needed.
+@cli
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["s3:GetObject", "s3:PutObject"],
+    "Resource": "arn:aws:s3:::my-test-artifacts-123/runs/*"
+  }]
+}
+! An explicit Deny always wins over any Allow. If something is denied unexpectedly, look for a Deny or a permissions boundary.
+
+@@@ Lambda
+Run a function on demand without managing servers. Billed per invocation and duration.
+@cli
+aws lambda create-function --function-name hello \
+  --runtime python3.12 --handler app.handler \
+  --zip-file fileb://function.zip \
+  --role arn:aws:iam::123456789012:role/lambda-basic
+aws lambda invoke --function-name hello --payload '{"name":"QA"}' \
+  --cli-binary-format raw-in-base64-out out.json
+aws lambda update-function-code --function-name hello --zip-file fileb://function.zip
+aws logs tail /aws/lambda/hello --follow
+
+@@@ CloudWatch logs and alarms
+Logs, metrics and alarms for almost every AWS service.
+@cli
+aws logs describe-log-groups --log-group-name-prefix /aws/lambda
+aws logs tail /aws/lambda/hello --since 1h --follow
+aws logs filter-log-events --log-group-name /aws/lambda/hello --filter-pattern ERROR
+aws cloudwatch put-metric-alarm --alarm-name high-5xx \
+  --metric-name 5XXError --namespace AWS/ApplicationELB \
+  --statistic Sum --period 300 --evaluation-periods 1 --threshold 10 \
+  --comparison-operator GreaterThanThreshold --alarm-actions arn:aws:sns:eu-west-1:123456789012:oncall
+
+@@@ SQS and SNS (messaging)
+SQS is a queue (one consumer handles each message). SNS is publish/subscribe (every subscriber gets a copy).
+@cli
+aws sqs create-queue --queue-name orders
+aws sqs send-message --queue-url "$QUEUE_URL" --message-body '{"id":1}'
+aws sqs receive-message --queue-url "$QUEUE_URL" --wait-time-seconds 10
+aws sqs delete-message --queue-url "$QUEUE_URL" --receipt-handle "$HANDLE"
+aws sns publish --topic-arn "$TOPIC_ARN" --message "deploy finished"
+! If you never delete a received message, it reappears after the visibility timeout. Test that your consumer deletes on success only.
+
+@@@ ECR, ECS and EKS (containers)
+ECR stores images, ECS runs them on AWS-managed scheduling, EKS runs Kubernetes.
+@cli
+aws ecr get-login-password --region eu-west-1 | \
+  docker login --username AWS --password-stdin 123456789012.dkr.ecr.eu-west-1.amazonaws.com
+docker push 123456789012.dkr.ecr.eu-west-1.amazonaws.com/my-api:1.0
+aws ecs list-services --cluster qa
+aws ecs update-service --cluster qa --service api --force-new-deployment
+aws eks update-kubeconfig --name qa-cluster --region eu-west-1   # then use kubectl
+
+@@@ VPC, subnets and security groups
+The network layer. Know these terms for any cloud interview.
+@cli
+# VPC            your private network (an address range, e.g. 10.0.0.0/16)
+# Subnet         a slice of the VPC in one Availability Zone; public = has a route to an internet gateway
+# Route table    where traffic for each destination goes
+# Internet GW    lets public subnets reach the internet; NAT GW lets private subnets go out only
+# Security group stateful firewall on an instance or interface (allow rules only)
+# NACL           stateless firewall on a subnet (allow and deny rules)
+aws ec2 describe-security-groups --group-ids sg-0123
+aws ec2 authorize-security-group-ingress --group-id sg-0123 --protocol tcp --port 443 --cidr 10.0.0.0/16
+! Opening 0.0.0.0/0 on port 22 or 3389 is one of the first things any security scan flags.
+
+@@@ CloudFormation
+AWS's own infrastructure-as-code: a template describes resources, a stack creates and updates them together.
+@cli
+AWSTemplateFormatVersion: "2010-09-09"
+Resources:
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: my-test-artifacts-123
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+
+aws cloudformation deploy --template-file bucket.yaml --stack-name artifacts
+aws cloudformation describe-stack-events --stack-name artifacts
+aws cloudformation delete-stack --stack-name artifacts
+
+@@ Azure
+
+@@@ Azure CLI sign-in and subscriptions
+Everything lives in a subscription. Check which one is active before you create or delete resources.
+@cli
+az login
+az account list --output table
+az account set --subscription "Dev-QA"
+az account show --query "{name:name, id:id}" -o table
+az login --service-principal -u "$APP_ID" -p "$SECRET" --tenant "$TENANT_ID"   # CI
+! Use a service principal or managed identity in pipelines, with the least role that works.
+
+@@@ Resource groups
+The container for related resources. Deleting the group deletes everything inside it.
+@cli
+az group create --name rg-qa --location westeurope
+az group list --output table
+az resource list --resource-group rg-qa --output table
+az group delete --name rg-qa --yes --no-wait
+! Group resources by lifecycle. Test environments in their own group can be removed with one command.
+
+@@@ Virtual machines
+Create, start and stop VMs.
+@cli
+az vm create --resource-group rg-qa --name vm-test \
+  --image Ubuntu2204 --size Standard_B2s \
+  --admin-username azureuser --generate-ssh-keys
+az vm list --resource-group rg-qa --show-details --output table
+az vm deallocate --resource-group rg-qa --name vm-test    # stop AND stop paying for compute
+az vm delete --resource-group rg-qa --name vm-test --yes
+! az vm stop keeps the VM allocated and billed. Use deallocate to release the compute.
+
+@@@ Storage accounts and blobs
+Blob storage is Azure's equivalent of S3.
+@cli
+az storage account create --name stqaartifacts123 --resource-group rg-qa \
+  --location westeurope --sku Standard_LRS --allow-blob-public-access false
+az storage container create --account-name stqaartifacts123 --name reports --auth-mode login
+az storage blob upload --account-name stqaartifacts123 --container-name reports \
+  --file report.html --name runs/42/report.html --auth-mode login
+az storage blob list --account-name stqaartifacts123 --container-name reports --output table --auth-mode login
+
+@@@ AKS (Kubernetes)
+Managed Kubernetes. Fetch credentials, then use kubectl as normal.
+@cli
+az aks create --resource-group rg-qa --name aks-qa --node-count 2 --generate-ssh-keys
+az aks get-credentials --resource-group rg-qa --name aks-qa
+kubectl get nodes
+az aks scale --resource-group rg-qa --name aks-qa --node-count 3
+az aks delete --resource-group rg-qa --name aks-qa --yes --no-wait
+
+@@@ ACR and App Service
+ACR stores container images. App Service hosts web apps and APIs without servers to manage.
+@cli
+az acr create --resource-group rg-qa --name acrqa123 --sku Basic
+az acr login --name acrqa123
+docker tag my-api:1.0 acrqa123.azurecr.io/my-api:1.0 && docker push acrqa123.azurecr.io/my-api:1.0
+az appservice plan create --resource-group rg-qa --name plan-qa --sku B1 --is-linux
+az webapp create --resource-group rg-qa --plan plan-qa --name my-api-qa \
+  --deployment-container-image-name acrqa123.azurecr.io/my-api:1.0
+az webapp log tail --resource-group rg-qa --name my-api-qa
+
+@@@ Key Vault (secrets)
+Store secrets, keys and certificates centrally, and let apps read them with a managed identity.
+@cli
+az keyvault create --name kv-qa-123 --resource-group rg-qa --enable-rbac-authorization true
+az keyvault secret set --vault-name kv-qa-123 --name db-password --value "s3cret"
+az keyvault secret show --vault-name kv-qa-123 --name db-password --query value -o tsv
+az role assignment create --assignee "$PRINCIPAL_ID" --role "Key Vault Secrets User" \
+  --scope "$(az keyvault show --name kv-qa-123 --query id -o tsv)"
+
+@@@ Azure RBAC
+Role assignments combine who (principal), what (role) and where (scope: management group, subscription, resource group or resource).
+@cli
+az role definition list --query "[?roleName=='Reader'].{name:roleName, id:name}" -o table
+az role assignment create --assignee jane@contoso.com --role Contributor --resource-group rg-qa
+az role assignment list --resource-group rg-qa --output table
+! Assign roles at the narrowest scope that works. Owner at subscription level is rarely justified.
+
+@@@ Azure Monitor and Log Analytics
+Metrics, logs and alerts. Query logs with KQL (Kusto Query Language).
+@cli
+az monitor metrics list --resource "$VM_ID" --metric "Percentage CPU" --interval PT5M
+// KQL in a Log Analytics workspace
+AppRequests
+| where TimeGenerated > ago(1h) and Success == false
+| summarize failures = count() by Name
+| order by failures desc
+
+@@@ Azure DevOps pipeline (YAML)
+A pipeline defined in azure-pipelines.yml: triggers, a pool and steps.
+@cli
+trigger:
+  branches: { include: [main] }
+pool:
+  vmImage: ubuntu-latest
+steps:
+  - task: UsePythonVersion@0
+    inputs: { versionSpec: "3.12" }
+  - script: pip install -r requirements.txt
+    displayName: Install
+  - script: pytest -q --junitxml=results.xml
+    displayName: Run tests
+  - task: PublishTestResults@2
+    condition: always()
+    inputs: { testResultsFiles: results.xml }
+
+@@ Terraform
+
+@@@ The core workflow
+Write configuration, then init, plan and apply. Plan shows exactly what will change before anything does.
+@cli
+terraform init                  # download providers and modules, set up the backend
+terraform fmt -recursive        # format the code
+terraform validate              # check syntax and references
+terraform plan -out tfplan      # preview the changes
+terraform apply tfplan          # make them
+terraform destroy               # remove everything this configuration manages
+! Always read the plan. A line with "must be replaced" means the resource is destroyed and recreated.
+
+@@@ Providers and resources
+A provider is the plugin for a platform. A resource block describes one object to create.
+@cli
+terraform {
+  required_version = ">= 1.6"
+  required_providers {
+    aws = { source = "hashicorp/aws", version = "~> 5.0" }
+  }
+}
+
+provider "aws" {
+  region = "eu-west-1"
+}
+
+resource "aws_s3_bucket" "artifacts" {
+  bucket = "my-test-artifacts-123"
+  tags   = { Env = "qa" }
+}
+
+@@@ Variables, locals and outputs
+Inputs, computed values and results you want to see or reuse.
+@cli
+variable "env" {
+  type        = string
+  description = "Environment name"
+  default     = "qa"
+}
+
+locals {
+  name_prefix = "app-${var.env}"
+}
+
+output "bucket_name" {
+  value = aws_s3_bucket.artifacts.bucket
+}
+
+terraform apply -var="env=staging"
+terraform apply -var-file=staging.tfvars
+terraform output bucket_name
+
+@@@ State
+Terraform records what it manages in a state file. Treat it as sensitive and share it through a remote backend.
+@cli
+terraform state list
+terraform state show aws_s3_bucket.artifacts
+terraform state mv aws_s3_bucket.artifacts aws_s3_bucket.reports
+terraform state rm aws_s3_bucket.artifacts      # stop managing it (the real resource stays)
+terraform refresh                               # prefer: terraform apply -refresh-only
+! State can contain secrets in plain text. Never commit terraform.tfstate to Git.
+
+@@@ Remote backend and locking
+Keep state in shared storage with locking so two people (or two pipelines) cannot apply at once.
+@cli
+terraform {
+  backend "s3" {
+    bucket         = "my-tf-state"
+    key            = "qa/terraform.tfstate"
+    region         = "eu-west-1"
+    dynamodb_table = "tf-locks"
+    encrypt        = true
+  }
+}
+
+terraform init -migrate-state
+
+@@@ Data sources
+Read information about things that already exist, without managing them.
+@cli
+data "aws_vpc" "default" {
+  default = true
+}
+
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"]
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+}
+
+resource "aws_instance" "test" {
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = "t3.micro"
+}
+
+@@@ count, for_each and conditionals
+Create several similar resources, or none at all, from one block.
+@cli
+resource "aws_s3_bucket" "env" {
+  for_each = toset(["dev", "qa", "staging"])
+  bucket   = "my-app-${each.key}"
+}
+
+resource "aws_instance" "worker" {
+  count         = var.env == "prod" ? 3 : 1
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = "t3.micro"
+}
+! Prefer for_each over count for collections: removing an item from the middle of a count list renumbers and recreates the rest.
+
+@@@ Modules
+Package a set of resources with inputs and outputs and reuse it.
+@cli
+module "network" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "~> 5.0"
+
+  name = "qa"
+  cidr = "10.0.0.0/16"
+}
+
+module "app" {
+  source    = "./modules/app"
+  subnet_id = module.network.private_subnets[0]
+}
+
+@@@ Workspaces
+Several state files from one configuration, for example one per environment.
+@cli
+terraform workspace list
+terraform workspace new staging
+terraform workspace select qa
+# in code: terraform.workspace gives the current name
+! Workspaces share one backend and one set of credentials. Many teams prefer separate directories or pipelines per environment for isolation.
+
+@@@ lifecycle, depends_on and import
+Control replacement behaviour, force an order, or bring existing resources under Terraform.
+@cli
+resource "aws_db_instance" "main" {
+  # ...
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes  = [tags]
+  }
+}
+
+import {
+  to = aws_s3_bucket.legacy
+  id = "legacy-bucket-name"
+}
+
+terraform plan -generate-config-out=generated.tf
+
+@@ Git & GitHub
+
+@@@ Start a repository
+Create a new repository, or copy an existing one.
+@cli
+git init                               # new repo in the current folder
+git clone https://github.com/org/repo.git
+git clone --depth 1 https://github.com/org/repo.git   # latest snapshot only (fast in CI)
+git status                             # what changed
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+
+@@@ Stage and commit
+Staging picks what goes into the next commit; a commit is a saved snapshot with a message.
+@cli
+git add file.py                  # stage one file
+git add -p                       # stage piece by piece
+git commit -m "Fix login retry"
+git commit --amend --no-edit     # add staged changes to the last commit
+git diff                         # unstaged changes
+git diff --staged                # what the next commit will contain
+! Write the message as an instruction ("Fix flaky login test"). Rewrite (amend) only commits you have not pushed.
+
+@@@ Branches
+A branch is a movable pointer to a commit. Branch freely: it is cheap.
+@cli
+git branch                       # list
+git switch -c feature/login-tests    # create and switch
+git switch main
+git branch -d feature/login-tests    # delete (safe: only if merged)
+git branch -D old-experiment         # delete anyway
+git branch -vv                       # show upstream tracking
+
+@@@ Merge vs rebase
+Both combine work from two branches. Merge keeps history as it happened; rebase replays your commits on top of the new base for a straight line.
+@cli
+git switch main && git pull
+git merge feature/login-tests         # creates a merge commit (or fast-forwards)
+
+git switch feature/login-tests
+git rebase main                       # replay your commits on top of main
+git rebase -i HEAD~4                  # squash, reorder or reword the last 4 commits
+git merge --abort                     # leave a conflicted merge
+git rebase --abort
+! Never rebase a branch other people have already pulled. Rewriting shared history forces everyone to repair their clones.
+
+@@@ Remotes, push and pull
+A remote is another copy of the repository, usually on GitHub.
+@cli
+git remote -v
+git remote add origin git@github.com:org/repo.git
+git fetch origin                          # download, change nothing local
+git pull --rebase origin main             # fetch + rebase your work on top
+git push -u origin feature/login-tests    # first push, set upstream
+git push --force-with-lease               # safer forced push after a rebase
+! Prefer --force-with-lease to --force: it refuses to overwrite commits you have not seen.
+
+@@@ Resolve a merge conflict
+Git marks the clashing lines. Edit the file, choose the final text, then mark it resolved.
+@cli
+git merge main
+# CONFLICT (content): Merge conflict in app/login.py
+# the file now contains:
+# <<<<<<< HEAD
+# your version
+# =======
+# their version
+# >>>>>>> main
+git status                    # lists "both modified" files
+git add app/login.py          # after editing and removing the markers
+git commit                    # complete the merge
+git checkout --theirs path/file   # or --ours: take one side wholesale
+
+@@@ Undo changes
+Pick the right tool: discard working changes, unstage, move a branch back, or add a commit that reverses another.
+@cli
+git restore file.py                  # discard unstaged edits
+git restore --staged file.py         # unstage, keep the edits
+git reset --soft HEAD~1              # undo the last commit, keep changes staged
+git reset --hard HEAD~1              # undo the last commit AND discard the changes
+git revert abc1234                   # new commit that reverses abc1234 (safe for shared branches)
+git reflog                           # every place HEAD has been: your safety net
+git reset --hard abc1234             # jump back to a commit found in the reflog
+! reset --hard deletes uncommitted work. On a shared branch use revert instead of reset.
+
+@@@ Stash
+Park unfinished work so you can switch branches with a clean tree.
+@cli
+git stash push -m "wip: retry logic"
+git stash list
+git stash pop                       # restore and drop the latest
+git stash apply stash@{1}           # restore but keep it
+git stash drop stash@{0}
+git stash push -u                   # include untracked files
+
+@@@ Log, blame and diff
+Find out who changed what, when and why.
+@cli
+git log --oneline --graph --decorate --all
+git log -p -- app/login.py            # history of one file with the changes
+git log --author="Jane" --since="2 weeks ago"
+git log -S"retry_count"               # commits that added or removed that text
+git blame app/login.py
+git diff main...feature/login-tests   # what the branch adds compared to main
+git show abc1234
+
+@@@ Tags and releases
+A tag marks a commit permanently, for example a release.
+@cli
+git tag v1.2.0                          # lightweight
+git tag -a v1.2.0 -m "Release 1.2.0"    # annotated (preferred for releases)
+git push origin v1.2.0
+git push origin --tags
+git tag -d v1.2.0 && git push origin :refs/tags/v1.2.0   # delete locally and remotely
+
+@@@ cherry-pick and bisect
+Copy one commit to another branch, or binary-search history for the commit that broke something.
+@cli
+git cherry-pick abc1234                 # apply that commit here
+git bisect start
+git bisect bad                          # current commit is broken
+git bisect good v1.1.0                  # this older one worked
+# Git checks out a commit in the middle: run your test, then answer:
+git bisect good      # or: git bisect bad
+git bisect reset     # finish
+git bisect run pytest -q tests/test_login.py     # let Git do it automatically
+! git bisect run is a QA superpower: a failing automated test pinpoints the commit that introduced the regression.
+
+@@@ .gitignore and cleaning
+Keep build output, secrets and local files out of the repository.
+@cli
+# .gitignore
+__pycache__/
+.venv/
+node_modules/
+.env
+*.log
+build/
+
+git rm --cached .env                 # stop tracking a file you committed by mistake
+git clean -nd                        # dry run: list untracked files that would go
+git clean -fd                        # delete them
+! Removing a secret from the latest commit does not remove it from history. Rotate the secret.
+
+@@@ Git hooks and pre-commit
+Scripts that run at commit time, for example to lint or run fast tests.
+@cli
+# .git/hooks/pre-commit  (make it executable)
+#!/bin/sh
+pytest -q -x tests/unit || exit 1
+
+# shared with the team through the pre-commit framework
+pip install pre-commit
+pre-commit install
+pre-commit run --all-files
+
+@@@ GitHub CLI (gh)
+Work with pull requests, issues and workflows from the terminal.
+@cli
+gh auth login
+gh repo clone org/repo
+gh pr create --fill --base main            # open a pull request from the current branch
+gh pr list --state open
+gh pr checkout 42                          # test someone's pull request locally
+gh pr checks 42                            # CI status
+gh pr merge 42 --squash --delete-branch
+gh issue create --title "Flaky login test" --label bug
+gh run list --workflow ci.yml
+gh run view --log-failed
+
+@@@ Pull request workflow
+The usual team loop, from branch to merge.
+@cli
+git switch -c feature/login-tests
+# ...edit, test, commit in small steps...
+git push -u origin feature/login-tests
+gh pr create --fill
+# review comments -> fix -> push again (the PR updates)
+# CI is green and approvals are in -> squash and merge
+git switch main && git pull && git branch -d feature/login-tests
+! Small pull requests get reviewed faster and break less. Aim for one idea per PR.
+
+@@@ GitHub Actions workflow
+Automation defined in .github/workflows/*.yml: run tests on every push and pull request.
+@cli
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.txt
+      - run: pytest -q --junitxml=results.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: test-results, path: results.xml }
+! Pin third-party actions to a version tag or commit SHA, and give the workflow the minimum permissions: block it needs.
+
+@@@ Branch protection and secrets on GitHub
+Rules that keep main safe, and where credentials belong.
+@cli
+# Settings -> Branches -> Branch protection rule for main
+#   Require a pull request before merging (and approvals)
+#   Require status checks to pass (select your CI job)
+#   Require branches to be up to date
+#   Restrict force pushes and deletions
+# Settings -> Secrets and variables -> Actions
+gh secret set AWS_ROLE_ARN --body "arn:aws:iam::123456789012:role/ci"
+# in a workflow:  ${{ secrets.AWS_ROLE_ARN }}
+! Secrets are not exposed to workflows triggered by pull requests from forks. Prefer short-lived OIDC credentials to stored cloud keys.
