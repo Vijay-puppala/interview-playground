@@ -95,6 +95,4 @@ Serves `web/` on http://localhost:8000. Useless headless, and the Pyodide / PGli
 ## Troubleshooting
 
 - `page.waitForSelector: Timeout 60000ms exceeded` with a failure screenshot: open the screenshot. Usually a wrong selector, a route that does not exist (the site falls back to Home), or a section slug typo (`slug("Git & GitHub")` is `git-github`).
-- `Executable doesn't exist` from Playwright: set `CHROME=/opt/pw-browsers/chromium-1194/chrome-linux/chrome` (the driver auto-detects the newest `chromium-*` folder).
-- `Cannot find module 'playwright'`: the driver falls back to `/opt/node-tools/node_modules/playwright`; if that is also missing, `npm install --no-save playwright`.
 - e2e `FAIL` on an entry count after adding cheat-sheet entries: the totals are hard-coded in `tools/e2e.mjs` (twice) and `README.md`; update them.
