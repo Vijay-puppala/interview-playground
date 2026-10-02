@@ -13,6 +13,7 @@ File format (plain text, so code needs no escaping):
                    expected output = header line "a | b" then one "x | y" line per row, NULL for null
     @cli           shell / YAML / HCL / JSON for DevOps tools (Docker, Kubernetes, AWS, Azure, Terraform, Git).
                    Always view-only (needs real tools and credentials), shown for every language.
+    @txt           plain text for concepts (definitions, checklists, regulations). Always view-only, shown for every language.
     @js!           trailing "!" = shown but never executed (needs Node, network, a browser...)
 
 A @ts block is optional; when missing the site shows the JavaScript code for TypeScript too.
@@ -23,7 +24,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-BLOCK = re.compile(r"^@(py|js|ts|sql|cli)(!?)$")
+BLOCK = re.compile(r"^@(py|js|ts|sql|cli|txt)(!?)$")
 
 
 def parse_text(text: str, source: str = "") -> list[dict]:
@@ -41,7 +42,7 @@ def parse_text(text: str, source: str = "") -> list[dict]:
         elif line.startswith("! ") and entry is not None:      # gotcha notes are allowed anywhere in an entry
             entry["notes"].append(line[2:].strip())
         elif (m := BLOCK.match(line)) and entry is not None:
-            block = {"code": [], "out": [], "run": not m.group(2) and m.group(1) != "cli"}
+            block = {"code": [], "out": [], "run": not m.group(2) and m.group(1) not in ("cli", "txt")}
             entry["code"][m.group(1)] = block
         elif block is not None:
             if line.startswith("=>"):

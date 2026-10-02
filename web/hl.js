@@ -58,6 +58,7 @@
   function highlight(code, lang) {
     if (lang === "sql") return highlightSql(code);
     if (lang === "cli") return highlightCli(code);
+    if (lang === "txt") return esc(code);
     const re = new RegExp((lang === "py" ? COMMON.py : COMMON.js).source, "g");
     const kw = KEYWORDS[lang] || KEYWORDS.js;
     let out = "";

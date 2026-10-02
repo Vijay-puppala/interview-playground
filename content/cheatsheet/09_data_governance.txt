@@ -1,0 +1,844 @@
+@@ Data governance · Concepts
+
+@@@ What data governance is
+Data governance is the set of people, policies, processes and tools that keep data accurate, secure, findable and used legally. It answers: who owns this data, what does it mean, how good is it, who may see it and how long do we keep it.
+@txt
+Goals
+  - Trust: data is accurate, complete and consistent
+  - Protection: sensitive data is secured and access is controlled
+  - Compliance: GDPR, HIPAA, CCPA and internal policies are met and provable
+  - Value: data is discoverable, documented and reusable
+
+The building blocks
+  Policies and standards   what is allowed (classification, retention, access, quality thresholds)
+  Roles and ownership      owner, steward, custodian, consumer
+  Metadata and catalog     what data exists, where it came from, what it means
+  Data quality             rules, monitoring, issue management
+  Security and privacy     classification, masking, encryption, consent
+  Lifecycle                creation, use, archiving, deletion
+! Governance is not the same as security or data management. It is the decision framework (who decides what); the others carry the decisions out.
+
+@@@ Roles: owner, steward, custodian, consumer
+Clear ownership is the first thing auditors and testers ask for.
+@txt
+Data owner       accountable business executive for a domain; approves access and policy
+Data steward     day-to-day quality and metadata: defines terms, fixes issues, certifies assets
+Data custodian   technical keeper (DBA, platform team): storage, backups, security controls
+Data consumer    analysts, apps and models that use the data under the policies
+Data protection officer (DPO)   independent privacy adviser; required under GDPR in many organisations
+Governance council              cross-functional group that sets policy and settles disputes
+! A common test finding: assets with no owner or steward. Track "percentage of critical assets with an owner" as a metric.
+
+@@@ Data quality dimensions
+The standard checklist for describing "good data". Every quality rule belongs to one of these.
+@txt
+Completeness   required values are present                       (no NULL email)
+Validity       values match format, type, range or domain        (email pattern, age 0-120, status in a list)
+Uniqueness     no unwanted duplicates                            (one row per customer)
+Consistency    the same fact agrees across systems and tables    (order total = sum of items)
+Accuracy       values match the real world                       (address is deliverable)
+Timeliness     data is available and fresh enough                (loaded by 6 am, not older than 24 h)
+Integrity      relationships hold                                (every order has a customer)
+! Accuracy is the hardest to automate because it needs a trusted reference. Most automated checks cover the other six.
+
+@@@ Data classification levels
+Classification decides which controls apply. Names vary, the idea is the same.
+@txt
+Public         safe to share (marketing pages)                       no special controls
+Internal       for staff only (org charts, internal docs)            authentication
+Confidential   business sensitive (contracts, salaries, pricing)     role-based access, encryption
+Restricted     regulated or highly sensitive (PII, PHI, card data)   strict access, masking, audit, retention limits
+
+Typical categories
+  PII   personally identifiable information (name, email, phone, address, national ID)
+  PHI   protected health information under HIPAA
+  PCI   payment card data
+  SPI   sensitive personal data (health, biometrics, religion, sexual orientation)
+
+@@@ GDPR essentials for testers
+EU and UK privacy law for personal data of people in those regions, wherever the company is.
+@txt
+Principles           lawfulness, fairness, transparency; purpose limitation; data minimisation;
+                     accuracy; storage limitation; integrity and confidentiality; accountability
+Lawful basis         consent, contract, legal obligation, vital interests, public task, legitimate interests
+Data subject rights  access, rectification, erasure ("right to be forgotten"), restriction,
+                     portability, objection, and rights about automated decisions
+Breach notification  tell the regulator within 72 hours of becoming aware (when there is risk to people)
+Accountability       records of processing, DPIA for high-risk processing, privacy by design and by default
+Penalties            up to EUR 20 million or 4% of worldwide turnover, whichever is higher
+Cross-border         transfers outside the EEA need a safeguard (adequacy decision, SCCs...)
+What to test         erasure removes data from every system and backup cycle, access requests return everything,
+                     consent withdrawal stops processing, retention jobs purge on time, audit logs record access
+
+@@@ HIPAA essentials for testers
+US law protecting health information held by covered entities (providers, plans, clearinghouses) and their business associates.
+@txt
+PHI                  health data linked to an individual, in any form (paper, electronic, spoken)
+Privacy Rule         who may use or disclose PHI; the "minimum necessary" standard; patient rights of access
+Security Rule        administrative, physical and technical safeguards for electronic PHI:
+                     access control, unique user IDs, audit controls, integrity controls, transmission security
+Breach Notification  notify affected individuals without unreasonable delay and within 60 days
+Business associates  vendors handling PHI must sign a Business Associate Agreement (BAA)
+De-identification    Safe Harbor (remove the 18 identifier types) or Expert Determination
+What to test         role-based access to records, audit trail of every view and change, encryption in transit
+                     and at rest, automatic logoff, de-identified datasets really contain no identifiers
+
+@@@ CCPA / CPRA essentials for testers
+California privacy law covering residents' personal information held by qualifying businesses.
+@txt
+Consumer rights      know what is collected, delete, correct, opt out of sale or sharing,
+                     limit use of sensitive personal information, no discrimination for exercising rights
+Responding           confirm a request promptly and respond typically within 45 days
+Opt-out signals      honour browser signals such as Global Privacy Control
+Notice               tell people what you collect, why, and who receives it, at or before collection
+What to test         "Do Not Sell or Share" actually stops the data flow, deletion reaches downstream processors,
+                     requests are verified and logged, minors' data follows the stricter opt-in rules
+
+@@@ Metadata, catalog, glossary and dictionary
+Four related ideas that are often confused.
+@txt
+Metadata          data about data: technical (schema, types), business (meaning, owner), operational (load times, volumes)
+Data dictionary   technical description of tables and columns: name, type, length, nullable, description
+Business glossary agreed business terms and definitions ("Active customer = purchased in the last 12 months")
+Data catalog      searchable inventory of assets that combines dictionary, glossary, ownership, lineage,
+                  quality scores and classification; the place people go to find and trust data
+Active metadata   metadata that drives action (a PII tag triggers masking; a failed quality check blocks a pipeline)
+
+@@@ Data lineage: types and what to test
+Lineage shows where data came from and where it goes. It is the basis for impact analysis and audits.
+@txt
+Table lineage    asset A feeds asset B
+Column lineage   column x in B is derived from columns y and z in A (with the transformation)
+Technical vs business lineage   physical pipelines vs the business concepts they implement
+Upstream (root cause)           "where did this wrong number come from?"
+Downstream (impact analysis)    "what breaks if I change this column?"
+What to test   every hop appears and in the right direction, column mappings are correct through joins and
+               expressions, lineage updates after a pipeline change, deleted assets disappear, cycles do not hang
+               the graph, large graphs stay responsive
+
+@@@ Data lifecycle and retention
+Data should be kept only as long as there is a reason. Retention rules say how long and what happens at the end.
+@txt
+Stages           create -> store -> use -> share -> archive -> delete
+Retention rule   keep orders 7 years (tax law), keep web logs 90 days, keep marketing consent until withdrawn
+Legal hold       suspends deletion for data relevant to litigation or investigation
+Deletion         hard delete, anonymisation, or crypto-shredding (destroy the key); backups and replicas count too
+What to test     the purge job removes exactly the expired rows, legal holds are respected, deletions reach
+                 downstream copies and search indexes, an audit record proves it happened
+
+@@@ Master data, reference data and data contracts
+Shared, long-lived data needs extra care because many systems depend on it.
+@txt
+Master data      core business entities: customer, product, supplier, employee (one golden record per entity)
+Reference data   controlled lists: country codes, currencies, status values
+MDM              processes and tools to match, merge, survive and distribute master data
+Data contract    written agreement between a producer and its consumers: schema, semantics, quality thresholds,
+                 freshness (SLA), change process; checked automatically in the pipeline
+! A schema change that silently breaks consumers is a contract violation. Test contracts in CI, not in production.
+
+@@@ Governance metrics that matter
+How a governance programme shows it works. Good test targets too.
+@txt
+Quality                 overall quality score, failed rules per day, mean time to resolve a quality issue
+Coverage                % of critical assets with an owner, a description, a classification and a quality rule
+Classification          % of sensitive columns tagged correctly (precision and recall of the detector)
+Lineage                 % of critical reports with end-to-end lineage
+Access                  % of access requests approved within SLA, number of unused entitlements revoked
+Privacy                 data subject requests closed within the legal deadline, number of incidents
+
+@@@ What a QE tests in a governed data platform
+A checklist to adapt for any catalog, quality or governance product.
+@txt
+Discovery and profiling   connects to each source type, scans on schedule, row counts and statistics are correct
+Classification            patterns and dictionaries find real PII, few false positives, custom rules work
+Quality rules             each dimension scored correctly, thresholds trigger alerts, results are reproducible
+Lineage                   parsers cover each SQL dialect and ETL tool, column-level accuracy
+Policies                  masking, row filtering and access rules enforced on every path (UI, API, SQL, exports)
+Access control            roles, groups, least privilege, access reviews, separation of duties
+Audit                     who did what and when is logged, tamper-resistant, searchable
+Lifecycle                 retention and purge jobs, archival, restore
+Non functional            scale to millions of tables, scan performance, incremental scans, upgrade paths
+Environments              on-premises, hybrid and cloud (AWS, Azure) behave the same, containers and Kubernetes deploy cleanly
+Compliance evidence       reports that map controls to GDPR, HIPAA, CCPA requirements
+
+@@ Data governance · Profiling and quality
+
+@@@ Inventory the columns of every table
+Profiling starts with knowing what exists. The information_schema views list every table and column.
+@sql
+SELECT table_name, COUNT(*) AS columns
+FROM information_schema.columns
+WHERE table_schema = 'public'
+GROUP BY table_name
+ORDER BY table_name
+LIMIT 6;
+=> table_name | columns
+=> customer_dim | 7
+=> customers | 6
+=> customers_stg | 5
+=> departments | 3
+=> employees | 7
+=> logins | 3
+
+@@@ Profile a column: completeness, uniqueness and range
+The five numbers every profiler reports for a column.
+@sql
+SELECT COUNT(*)                                       AS total_rows,
+       COUNT(salary)                                  AS non_null,
+       ROUND(100.0 * COUNT(salary) / COUNT(*), 1)     AS completeness_pct,
+       COUNT(DISTINCT salary)                         AS distinct_values,
+       MIN(salary)                                    AS min_salary,
+       MAX(salary)                                    AS max_salary,
+       ROUND(AVG(salary), 0)                          AS avg_salary
+FROM employees;
+=> total_rows | non_null | completeness_pct | distinct_values | min_salary | max_salary | avg_salary
+=> 27 | 25 | 92.6 | 20 | 72000.00 | 250000.00 | 125720
+
+@@@ Null counts for every column of a table
+One generic query for any table: turn each row into JSON and count the JSON nulls per key.
+@sql
+SELECT j.key AS column_name,
+       COUNT(*) FILTER (WHERE j.value = 'null'::jsonb) AS nulls,
+       COUNT(*)                                        AS total
+FROM employees e
+CROSS JOIN LATERAL jsonb_each(to_jsonb(e)) AS j
+GROUP BY j.key
+ORDER BY nulls DESC, column_name;
+=> column_name | nulls | total
+=> salary | 2 | 27
+=> dept_id | 1 | 27
+=> manager_id | 1 | 27
+=> email | 0 | 27
+=> emp_id | 0 | 27
+=> emp_name | 0 | 27
+=> hire_date | 0 | 27
+
+@@@ Validity rules: format, range and domain
+Count the rows that break each rule. Zero is the goal.
+@sql
+SELECT COUNT(*)                                                              AS total_orders,
+       COUNT(*) FILTER (WHERE amount <= 0)                                   AS non_positive_amount,
+       COUNT(*) FILTER (WHERE status NOT IN ('placed','shipped','delivered','cancelled')) AS bad_status,
+       COUNT(*) FILTER (WHERE order_date > DATE '2030-01-01')                AS future_dated
+FROM orders;
+=> total_orders | non_positive_amount | bad_status | future_dated
+=> 73 | 0 | 0 | 0
+
+@@@ Uniqueness checks
+Compare the row count with the distinct count. Any difference is a duplicate.
+@sql
+SELECT 'customers.email' AS rule, COUNT(*) - COUNT(DISTINCT email) AS duplicates FROM customers
+UNION ALL
+SELECT 'employees.email', COUNT(*) - COUNT(DISTINCT email) FROM employees
+UNION ALL
+SELECT 'orders.order_id', COUNT(*) - COUNT(DISTINCT order_id) FROM orders;
+=> rule | duplicates
+=> customers.email | 3
+=> employees.email | 0
+=> orders.order_id | 0
+
+@@@ Referential integrity across tables
+Child rows whose parent is missing (orphans), for several relationships in one result.
+@sql
+SELECT 'orders -> customers' AS relationship, COUNT(*) AS orphans
+FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id
+WHERE c.customer_id IS NULL
+UNION ALL
+SELECT 'order_items -> orders', COUNT(*)
+FROM order_items i LEFT JOIN orders o ON o.order_id = i.order_id
+WHERE o.order_id IS NULL
+UNION ALL
+SELECT 'order_items -> products', COUNT(*)
+FROM order_items i LEFT JOIN products p ON p.product_id = i.product_id
+WHERE p.product_id IS NULL;
+=> relationship | orphans
+=> orders -> customers | 1
+=> order_items -> orders | 0
+=> order_items -> products | 0
+
+@@@ A data quality scorecard
+Each rule reports how many rows passed. The overall score is passed over total across all rules.
+@sql
+WITH checks AS (
+  SELECT 'completeness: salary present' AS rule,
+         COUNT(*) FILTER (WHERE salary IS NOT NULL) AS passed, COUNT(*) AS total FROM employees
+  UNION ALL
+  SELECT 'validity: email format',
+         COUNT(*) FILTER (WHERE email ~ '^[^@\s]+@[^@\s]+\.[a-z]{2,}$'), COUNT(*) FROM employees
+  UNION ALL
+  SELECT 'uniqueness: email', COUNT(DISTINCT email), COUNT(*) FROM employees
+  UNION ALL
+  SELECT 'consistency: manager exists',
+         COUNT(*) FILTER (WHERE manager_id IS NULL OR manager_id IN (SELECT emp_id FROM employees)), COUNT(*) FROM employees
+)
+SELECT rule, passed, total, ROUND(100.0 * passed / total, 1) AS score
+FROM checks
+UNION ALL
+SELECT 'OVERALL', SUM(passed), SUM(total), ROUND(100.0 * SUM(passed) / SUM(total), 1)
+FROM checks;
+=> rule | passed | total | score
+=> completeness: salary present | 25 | 27 | 92.6
+=> validity: email format | 27 | 27 | 100.0
+=> uniqueness: email | 27 | 27 | 100.0
+=> consistency: manager exists | 26 | 27 | 96.3
+=> OVERALL | 105 | 108 | 97.2
+
+@@@ Reconcile a source with its target
+After a load, compare row counts and a simple checksum. A mismatch means rows were lost, duplicated or changed.
+@sql
+SELECT 'customers_stg' AS dataset, COUNT(*) AS row_count, SUM(customer_id) AS id_checksum, MAX(customer_id) AS max_id FROM customers_stg
+UNION ALL
+SELECT 'customers',     COUNT(*),                SUM(customer_id),            MAX(customer_id)           FROM customers;
+=> dataset | row_count | id_checksum | max_id
+=> customers_stg | 9 | 71 | 22
+=> customers | 29 | 435 | 29
+
+@@@ Outliers with a z-score
+A value far from the average (here more than 2 standard deviations) deserves a look before it reaches a report.
+@sql
+WITH s AS (SELECT AVG(amount) AS mean, STDDEV_POP(amount) AS sd FROM orders)
+SELECT o.order_id, o.amount, ROUND((o.amount - s.mean) / s.sd, 2) AS z_score
+FROM orders o CROSS JOIN s
+WHERE ABS((o.amount - s.mean) / s.sd) > 2
+ORDER BY z_score DESC;
+=> order_id | amount | z_score
+=> 72 | 820.00 | 3.50
+=> 71 | 700.00 | 2.80
+=> 70 | 650.00 | 2.50
+
+@@@ Freshness
+How old is the newest record? Compare with the agreed SLA. (A fixed as-of date keeps this example repeatable; in production use CURRENT_DATE.)
+@sql
+SELECT MAX(view_ts)::date                         AS latest_event,
+       DATE '2024-04-01' - MAX(view_ts)::date     AS days_stale,
+       CASE WHEN DATE '2024-04-01' - MAX(view_ts)::date > 1 THEN 'STALE' ELSE 'FRESH' END AS status
+FROM page_views;
+=> latest_event | days_stale | status
+=> 2024-03-04 | 28 | STALE
+
+@@ Data governance · Classification and privacy
+
+@@@ Discover likely sensitive columns by name
+A first-pass classifier: match column names against known patterns, then have a steward confirm.
+@sql
+SELECT table_name, column_name,
+       CASE WHEN column_name ~* 'email'     THEN 'Contact (PII)'
+            WHEN column_name ~* '_name$'    THEN 'Identity (PII)'
+            WHEN column_name ~* 'salary'    THEN 'Financial (Confidential)'
+            WHEN column_name ~* 'city|country' THEN 'Location (PII)'
+       END AS suggested_class
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name IN ('employees', 'customers')
+  AND column_name ~* 'email|_name$|salary|city|country'
+ORDER BY table_name, column_name;
+=> table_name | column_name | suggested_class
+=> customers | city | Location (PII)
+=> customers | country | Location (PII)
+=> customers | customer_name | Identity (PII)
+=> customers | email | Contact (PII)
+=> employees | email | Contact (PII)
+=> employees | emp_name | Identity (PII)
+=> employees | salary | Financial (Confidential)
+! Names can mislead (a column called notes may hold phone numbers). Combine name matching with value scanning.
+
+@@@ Classify by looking at the values
+Pattern-match the data itself. The values here are made-up test data.
+@sql
+SELECT v AS sample_value,
+       CASE WHEN v ~ '^[^@\s]+@[^@\s]+\.[a-z]{2,}$'  THEN 'EMAIL'
+            WHEN v ~ '^\d{3}-\d{2}-\d{4}$'           THEN 'US_SSN'
+            WHEN v ~ '^\d(?:[ -]?\d){12,15}$'        THEN 'CARD_NUMBER'
+            WHEN v ~ '^\+?\d[\d\s-]{8,14}\d$'        THEN 'PHONE'
+            ELSE 'OTHER'
+       END AS detected_class
+FROM (VALUES ('ada@mail.test'), ('123-45-6789'), ('4111 1111 1111 1111'),
+             ('+44 20 7946 0958'), ('hello world')) AS t(v);
+=> sample_value | detected_class
+=> ada@mail.test | EMAIL
+=> 123-45-6789 | US_SSN
+=> 4111 1111 1111 1111 | CARD_NUMBER
+=> +44 20 7946 0958 | PHONE
+=> hello world | OTHER
+! Measure the detector: precision (how many flags are right) and recall (how much real PII it finds). Card numbers should also pass a Luhn check.
+
+@@@ Mask values for non-production use
+Show enough to be useful in tests, not enough to identify a person.
+@sql
+SELECT emp_name,
+       LEFT(emp_name, 1) || REPEAT('*', LENGTH(emp_name) - 1)        AS masked_name,
+       REGEXP_REPLACE(email, '^(.).*(@.*)$', '\1***\2')              AS masked_email
+FROM employees
+ORDER BY emp_id
+LIMIT 3;
+=> emp_name | masked_name | masked_email
+=> Avery Quinn | A********** | a***@corp.test
+=> Blake Reed | B********* | b***@corp.test
+=> Casey Lin | C******** | c***@corp.test
+
+@@@ Pseudonymise with a salted hash
+Replace an identifier with a stable token. The same input always gives the same token, so joins still work, but the original is not readable.
+@sql
+SELECT customer_id,
+       ENCODE(SHA256(CONVERT_TO('pepper-2024:' || LOWER(email), 'UTF8')), 'hex') AS email_token
+FROM customers
+ORDER BY customer_id
+LIMIT 2;
+=> customer_id | email_token
+=> 1 | 989b41c19660aefaf25e2b1dc89ef5071feb30e9ce493286bc831681c06477e5
+=> 2 | e1b893cc5b9dc34fc0e929c3d51ed0affeaa3168a5bc194a4e7c99658bb2bd91
+! Keep the salt (pepper) secret and separate from the data. Pseudonymised data is still personal data under GDPR because it can be re-linked.
+
+@@@ k-anonymity check
+Every combination of quasi-identifiers (here country and city) should describe at least k people. Groups smaller than k can single someone out.
+@sql
+SELECT country, city, COUNT(*) AS people
+FROM customers
+GROUP BY country, city
+HAVING COUNT(*) < 2
+ORDER BY country, city
+LIMIT 5;
+=> country | city | people
+=> Czechia | Prague | 1
+=> Egypt | Cairo | 1
+=> Germany | Berlin | 1
+=> India | Delhi | 1
+=> Ireland | Dublin | 1
+
+@@@ Retention: rows past their keep-until date
+Find what the purge job should delete. (A fixed cut-off date keeps the example repeatable.)
+@sql
+SELECT COUNT(*)        AS past_retention,
+       MIN(order_date) AS oldest,
+       MAX(order_date) AS newest_expired
+FROM orders
+WHERE order_date < DATE '2023-07-01';
+=> past_retention | oldest | newest_expired
+=> 19 | 2023-01-10 | 2023-06-26
+
+@@@ Right to erasure
+Delete a person's data and prove it. RETURNING lists exactly what was removed (this page rolls the change back).
+@sql
+DELETE FROM customers
+WHERE email = 'ada@mail.test'
+RETURNING customer_id, customer_name;
+=> customer_id | customer_name
+=> 1 | Ada Mercer
+! Erasure must also reach child tables, caches, search indexes, analytics copies, logs and backups (at their next cycle). Test every copy, not just the main table.
+
+@@@ Least privilege with roles and a safe view
+Give analysts a view without direct identifiers and revoke the base table. View only here because the sandbox has a single user.
+@sql!
+CREATE ROLE analyst NOLOGIN;
+CREATE VIEW customers_safe AS
+  SELECT customer_id, city, country, signup_date FROM customers;   -- no name, no email
+
+REVOKE ALL ON customers FROM analyst;
+GRANT  SELECT ON customers_safe TO analyst;
+
+-- Row-level security: each region manager sees only their rows
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY region_only ON orders
+  USING (customer_id IN (SELECT customer_id FROM customers WHERE country = current_setting('app.country')));
+
+@@@ Audit trail
+Record who changed what and when, written by the database so applications cannot skip it. View only here.
+@sql!
+CREATE TABLE audit_log (
+  id         BIGSERIAL PRIMARY KEY,
+  table_name TEXT, action TEXT, row_id INT,
+  old_data   JSONB, new_data JSONB,
+  changed_by TEXT DEFAULT current_user,
+  changed_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE FUNCTION log_change() RETURNS trigger AS $$
+BEGIN
+  INSERT INTO audit_log (table_name, action, row_id, old_data, new_data)
+  VALUES (TG_TABLE_NAME, TG_OP, COALESCE(NEW.customer_id, OLD.customer_id), to_jsonb(OLD), to_jsonb(NEW));
+  RETURN NULL;
+END $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER customers_audit AFTER INSERT OR UPDATE OR DELETE ON customers
+FOR EACH ROW EXECUTE FUNCTION log_change();
+
+@@ Data governance · Lineage and metadata
+
+@@@ Downstream impact analysis
+"If I change this source, which reports are affected?" Walk the lineage graph forward with a recursive query. The edges are inline sample data.
+@sql
+WITH RECURSIVE edges(source, target) AS (
+  VALUES ('crm.customers',  'stg.customers'),
+         ('stg.customers',  'dw.dim_customer'),
+         ('erp.orders',     'stg.orders'),
+         ('stg.orders',     'dw.fact_orders'),
+         ('dw.dim_customer','dw.fact_orders'),
+         ('dw.dim_customer','bi.sales_dashboard'),
+         ('dw.fact_orders', 'bi.sales_dashboard'),
+         ('dw.fact_orders', 'bi.revenue_report')
+), downstream(asset, hops) AS (
+  SELECT target, 1 FROM edges WHERE source = 'crm.customers'
+  UNION
+  SELECT e.target, d.hops + 1 FROM edges e JOIN downstream d ON e.source = d.asset
+)
+SELECT asset, MIN(hops) AS hops
+FROM downstream
+GROUP BY asset
+ORDER BY hops, asset;
+=> asset | hops
+=> stg.customers | 1
+=> dw.dim_customer | 2
+=> bi.sales_dashboard | 3
+=> dw.fact_orders | 3
+=> bi.revenue_report | 4
+
+@@@ Upstream lineage (root cause)
+"Where did this report's data come from?" Walk the same graph backwards.
+@sql
+WITH RECURSIVE edges(source, target) AS (
+  VALUES ('crm.customers',  'stg.customers'),
+         ('stg.customers',  'dw.dim_customer'),
+         ('erp.orders',     'stg.orders'),
+         ('stg.orders',     'dw.fact_orders'),
+         ('dw.dim_customer','dw.fact_orders'),
+         ('dw.fact_orders', 'bi.revenue_report')
+), upstream(asset, hops) AS (
+  SELECT source, 1 FROM edges WHERE target = 'bi.revenue_report'
+  UNION
+  SELECT e.source, u.hops + 1 FROM edges e JOIN upstream u ON e.target = u.asset
+)
+SELECT asset, MIN(hops) AS hops
+FROM upstream
+GROUP BY asset
+ORDER BY hops, asset;
+=> asset | hops
+=> dw.fact_orders | 1
+=> dw.dim_customer | 2
+=> stg.orders | 2
+=> erp.orders | 3
+=> stg.customers | 3
+=> crm.customers | 4
+
+@@@ A data dictionary from information_schema
+Technical metadata for one table, straight from the database catalog.
+@sql
+SELECT column_name, data_type, is_nullable, character_maximum_length AS max_length
+FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = 'employees'
+ORDER BY ordinal_position;
+=> column_name | data_type | is_nullable | max_length
+=> emp_id | integer | NO | NULL
+=> emp_name | character varying | YES | 80
+=> email | character varying | YES | 120
+=> dept_id | integer | YES | NULL
+=> manager_id | integer | YES | NULL
+=> salary | numeric | YES | NULL
+=> hire_date | date | YES | NULL
+
+@@@ Business descriptions with COMMENT ON
+Store ownership and classification next to the object, then read it back for the catalog.
+@sql
+COMMENT ON TABLE employees IS 'Staff roster. Owner: HR. Classification: Confidential';
+COMMENT ON COLUMN employees.email IS 'Work email address. PII';
+
+SELECT c.relname AS object, 'table' AS kind, OBJ_DESCRIPTION(c.oid, 'pg_class') AS description
+FROM pg_class c
+WHERE c.relname = 'employees' AND c.relkind = 'r'
+UNION ALL
+SELECT 'employees.' || a.attname, 'column', COL_DESCRIPTION(a.attrelid, a.attnum)
+FROM pg_attribute a
+WHERE a.attrelid = 'employees'::regclass AND a.attname = 'email';
+=> object | kind | description
+=> employees | table | Staff roster. Owner: HR. Classification: Confidential
+=> employees.email | column | Work email address. PII
+
+@@@ Schema drift detection
+Compare what a contract expects with what the database has. Missing or unexpected columns break consumers.
+@sql
+WITH expected(col) AS (
+  VALUES ('emp_id'), ('emp_name'), ('email'), ('phone')
+), actual AS (
+  SELECT column_name AS col FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'employees'
+)
+SELECT 'missing in table' AS issue, col FROM (SELECT col FROM expected EXCEPT SELECT col FROM actual) m
+UNION ALL
+SELECT 'not in contract', col FROM (SELECT col FROM actual EXCEPT SELECT col FROM expected) u
+ORDER BY issue DESC, col;
+=> issue | col
+=> not in contract | dept_id
+=> not in contract | hire_date
+=> not in contract | manager_id
+=> not in contract | salary
+=> missing in table | phone
+
+@@ Data governance · Code recipes
+
+@@@ Scan text for sensitive data
+Regular expressions find the common PII shapes. Real scanners add dictionaries, checksums (Luhn for cards) and context.
+@py
+import re
+
+PATTERNS = {
+    "email": r"[\w.+-]+@[\w-]+\.[\w.]+",
+    "us_ssn": r"\b\d{3}-\d{2}-\d{4}\b",
+    "card": r"\b\d(?:[ -]?\d){12,15}\b",
+    "ipv4": r"\b(?:\d{1,3}\.){3}\d{1,3}\b",
+}
+text = "Contact ada@mail.test, SSN 123-45-6789, card 4111 1111 1111 1111 from 10.0.0.7"
+for name, rx in PATTERNS.items():
+    for match in re.findall(rx, text):
+        print(name, "->", match)
+=> email -> ada@mail.test
+=> us_ssn -> 123-45-6789
+=> card -> 4111 1111 1111 1111
+=> ipv4 -> 10.0.0.7
+@js
+const patterns = {
+  email: /[\w.+-]+@[\w-]+\.[\w.]+/g,
+  us_ssn: /\b\d{3}-\d{2}-\d{4}\b/g,
+  card: /\b\d(?:[ -]?\d){12,15}\b/g,
+  ipv4: /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
+};
+const text = "Contact ada@mail.test, SSN 123-45-6789, card 4111 1111 1111 1111 from 10.0.0.7";
+for (const [name, rx] of Object.entries(patterns)) {
+  for (const match of text.match(rx) ?? []) console.log(name, "->", match);
+}
+=> email -> ada@mail.test
+=> us_ssn -> 123-45-6789
+=> card -> 4111 1111 1111 1111
+=> ipv4 -> 10.0.0.7
+
+@@@ Validate a card number with the Luhn check
+A format match is not enough: real card numbers satisfy the Luhn checksum, which removes many false positives.
+@py
+def luhn_ok(number: str) -> bool:
+    digits = [int(c) for c in number if c.isdigit()]
+    total = 0
+    for i, d in enumerate(reversed(digits)):
+        if i % 2 == 1:
+            d *= 2
+            if d > 9:
+                d -= 9
+        total += d
+    return total % 10 == 0
+
+print(luhn_ok("4111 1111 1111 1111"))   # a standard test number
+print(luhn_ok("4111 1111 1111 1112"))
+=> True
+=> False
+@js
+function luhnOk(number) {
+  const digits = [...number].filter((c) => /\d/.test(c)).map(Number);
+  let total = 0;
+  digits.reverse().forEach((d, i) => {
+    if (i % 2 === 1) { d *= 2; if (d > 9) d -= 9; }
+    total += d;
+  });
+  return total % 10 === 0;
+}
+console.log(luhnOk("4111 1111 1111 1111"));
+console.log(luhnOk("4111 1111 1111 1112"));
+=> true
+=> false
+
+@@@ Mask sensitive values
+Show enough to be useful in a test or a log, not enough to identify someone.
+@py
+import re
+
+def mask_email(email):
+    user, domain = email.split("@")
+    return user[0] + "*" * (len(user) - 1) + "@" + domain
+
+def mask_card(card):
+    digits = re.sub(r"\D", "", card)
+    return "*" * (len(digits) - 4) + digits[-4:]
+
+def mask_name(name):
+    return " ".join(part[0] + "*" * (len(part) - 1) for part in name.split())
+
+print(mask_email("ada.mercer@mail.test"))
+print(mask_card("4111 1111 1111 1111"))
+print(mask_name("Ada Mercer"))
+=> a*********@mail.test
+=> ************1111
+=> A** M*****
+@js
+const maskEmail = (email) => {
+  const [user, domain] = email.split("@");
+  return user[0] + "*".repeat(user.length - 1) + "@" + domain;
+};
+const maskCard = (card) => {
+  const digits = card.replace(/\D/g, "");
+  return "*".repeat(digits.length - 4) + digits.slice(-4);
+};
+const maskName = (name) => name.split(" ").map((p) => p[0] + "*".repeat(p.length - 1)).join(" ");
+
+console.log(maskEmail("ada.mercer@mail.test"));
+console.log(maskCard("4111 1111 1111 1111"));
+console.log(maskName("Ada Mercer"));
+=> a*********@mail.test
+=> ************1111
+=> A** M*****
+
+@@@ A data quality scorecard in code
+Rules are small functions. Apply each to every record and report the pass rate, the same way a quality tool does.
+@py
+import re
+
+records = [
+    {"id": 1, "email": "a@x.com", "age": 34},
+    {"id": 2, "email": "bad",     "age": -1},
+    {"id": 3, "email": None,      "age": 29},
+    {"id": 4, "email": "d@x.com", "age": None},
+]
+rules = {
+    "complete: email": lambda r: r["email"] is not None,
+    "valid: email": lambda r: bool(r["email"]) and re.fullmatch(r"[^@\s]+@[^@\s]+\.[a-z]{2,}", r["email"]) is not None,
+    "valid: age 0-120": lambda r: r["age"] is not None and 0 <= r["age"] <= 120,
+}
+for name, rule in rules.items():
+    passed = sum(1 for r in records if rule(r))
+    print(f"{name}: {passed}/{len(records)} = {100 * passed / len(records):.0f}%")
+=> complete: email: 3/4 = 75%
+=> valid: email: 2/4 = 50%
+=> valid: age 0-120: 2/4 = 50%
+@js
+const records = [
+  { id: 1, email: "a@x.com", age: 34 },
+  { id: 2, email: "bad", age: -1 },
+  { id: 3, email: null, age: 29 },
+  { id: 4, email: "d@x.com", age: null },
+];
+const rules = {
+  "complete: email": (r) => r.email !== null,
+  "valid: email": (r) => !!r.email && /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(r.email),
+  "valid: age 0-120": (r) => r.age !== null && r.age >= 0 && r.age <= 120,
+};
+for (const [name, rule] of Object.entries(rules)) {
+  const passed = records.filter(rule).length;
+  console.log(`${name}: ${passed}/${records.length} = ${(100 * passed / records.length).toFixed(0)}%`);
+}
+=> complete: email: 3/4 = 75%
+=> valid: email: 2/4 = 50%
+=> valid: age 0-120: 2/4 = 50%
+
+@@@ Validate records against a data contract
+A contract lists the fields, their types and allowed values. Run it on every batch before it is published.
+@py
+contract = {
+    "id": {"type": int, "required": True},
+    "email": {"type": str, "required": True},
+    "status": {"type": str, "enum": {"active", "closed"}},
+}
+
+def validate(record):
+    errors = []
+    for field, rule in contract.items():
+        if field not in record:
+            if rule.get("required"):
+                errors.append(f"{field}: missing")
+            continue
+        value = record[field]
+        if not isinstance(value, rule["type"]):
+            errors.append(f"{field}: expected {rule['type'].__name__}, got {type(value).__name__}")
+        elif "enum" in rule and value not in rule["enum"]:
+            errors.append(f"{field}: {value} not allowed")
+    errors += [f"{f}: unexpected field" for f in sorted(set(record) - set(contract))]
+    return errors
+
+print(validate({"id": 1, "email": "a@x.com", "status": "active"}))
+for e in validate({"id": "2", "status": "pending", "phone": "123"}):
+    print(e)
+=> []
+=> id: expected int, got str
+=> email: missing
+=> status: pending not allowed
+=> phone: unexpected field
+@js
+const contract = {
+  id: { type: "number", required: true },
+  email: { type: "string", required: true },
+  status: { type: "string", enum: ["active", "closed"] },
+};
+
+function validate(record) {
+  const errors = [];
+  for (const [field, rule] of Object.entries(contract)) {
+    if (!(field in record)) {
+      if (rule.required) errors.push(`${field}: missing`);
+      continue;
+    }
+    const value = record[field];
+    if (typeof value !== rule.type) errors.push(`${field}: expected ${rule.type}, got ${typeof value}`);
+    else if (rule.enum && !rule.enum.includes(value)) errors.push(`${field}: ${value} not allowed`);
+  }
+  for (const f of Object.keys(record).filter((k) => !(k in contract)).sort()) errors.push(`${f}: unexpected field`);
+  return errors;
+}
+
+console.log(JSON.stringify(validate({ id: 1, email: "a@x.com", status: "active" })));
+validate({ id: "2", status: "pending", phone: "123" }).forEach((e) => console.log(e));
+=> []
+=> id: expected number, got string
+=> email: missing
+=> status: pending not allowed
+=> phone: unexpected field
+
+@@@ Lineage impact analysis (breadth-first search)
+Treat lineage as a graph. Breadth-first search from a changed asset lists everything downstream, nearest first.
+@py
+from collections import deque
+
+edges = {
+    "crm.customers": ["stg.customers"],
+    "stg.customers": ["dw.dim_customer"],
+    "dw.dim_customer": ["bi.sales_dashboard", "dw.fact_orders"],
+    "dw.fact_orders": ["bi.sales_dashboard", "bi.revenue_report"],
+}
+
+def downstream(start):
+    seen, queue = {}, deque([(start, 0)])
+    while queue:
+        node, depth = queue.popleft()
+        for nxt in edges.get(node, []):
+            if nxt not in seen:
+                seen[nxt] = depth + 1
+                queue.append((nxt, depth + 1))
+    return seen
+
+for asset, hops in downstream("crm.customers").items():
+    print(hops, asset)
+=> 1 stg.customers
+=> 2 dw.dim_customer
+=> 3 bi.sales_dashboard
+=> 3 dw.fact_orders
+=> 4 bi.revenue_report
+@js
+const edges = {
+  "crm.customers": ["stg.customers"],
+  "stg.customers": ["dw.dim_customer"],
+  "dw.dim_customer": ["bi.sales_dashboard", "dw.fact_orders"],
+  "dw.fact_orders": ["bi.sales_dashboard", "bi.revenue_report"],
+};
+
+function downstream(start) {
+  const seen = new Map();
+  const queue = [[start, 0]];
+  while (queue.length) {
+    const [node, depth] = queue.shift();
+    for (const next of edges[node] ?? []) {
+      if (!seen.has(next)) { seen.set(next, depth + 1); queue.push([next, depth + 1]); }
+    }
+  }
+  return seen;
+}
+
+for (const [asset, hops] of downstream("crm.customers")) console.log(hops, asset);
+=> 1 stg.customers
+=> 2 dw.dim_customer
+=> 3 bi.sales_dashboard
+=> 3 dw.fact_orders
+=> 4 bi.revenue_report
+! A cycle in a lineage graph (A feeds B feeds A) would loop forever without the "seen" check. Always test cycles.
