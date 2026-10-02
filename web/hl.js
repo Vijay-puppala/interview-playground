@@ -31,9 +31,9 @@
   }
 
   // shell / YAML / HCL / JSON used by the DevOps cheat sheets (Docker, Kubernetes, AWS, Azure, Terraform, Git)
-  const CLI_TOOLS = new Set("docker kubectl helm aws az terraform git gh curl jq sudo npm pip pytest export echo cd cat ls mkdir chmod".split(" "));
+  const CLI_TOOLS = new Set("docker kubectl helm aws az terraform git gh curl jq sudo npm pip pytest export echo cd cat ls mkdir chmod mongosh mongodump mongorestore mongoexport mongoimport java db pipeline stage stages steps agent post environment parameters options triggers when parallel matrix node sh junit echo script".split(" "));
   const CLI_KW = new Set("resource variable output provider module data locals terraform backend required_providers required_version lifecycle import for_each count depends_on dynamic FROM RUN CMD COPY ADD ENV ARG WORKDIR EXPOSE USER VOLUME ENTRYPOINT HEALTHCHECK AS true false null".split(" "));
-  const CLI_RE = /(^[ \t]*\/\/[^\n]*|(?:^|[ \t])#[^\n]*)|("(?:\\.|[^"\\\n])*"|'[^'\n]*')|(\$\{[^}\n]*\}|\$[A-Za-z_]\w*)|((?<=[ \t])--?[A-Za-z][\w-]*)|(\b\d[\w.]*\b)|([A-Za-z_][\w./@-]*)(:(?=\s|$))?/gm;
+  const CLI_RE = /((?:^|[ \t])\/\/[^\n]*|(?:^|[ \t])#[^\n]*)|("(?:\\.|[^"\\\n])*"|'[^'\n]*')|(\$\{[^}\n]*\}|\$[A-Za-z_]\w*)|((?<=[ \t])--?[A-Za-z][\w-]*)|(\b\d[\w.]*\b)|([A-Za-z_][\w./@-]*)(:(?=\s|$))?/gm;
 
   function highlightCli(code) {
     let out = "", last = 0, m;

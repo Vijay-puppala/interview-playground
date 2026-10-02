@@ -55,6 +55,11 @@ def test_txt_blocks_are_txt_only_and_never_runnable():
     assert n >= 10
 
 
+def test_mongodb_kafka_jenkins_sections_exist():
+    sizes = {s["title"]: len(s["entries"]) for s in cheatsheet.load()}
+    assert sizes["MongoDB"] >= 10 and sizes["Kafka"] >= 10 and sizes["Jenkins"] >= 10
+
+
 def test_data_governance_sections_exist():
     titles = {s["title"] for s in cheatsheet.load()}
     assert {"Data governance · Concepts", "Data governance · Profiling and quality", "Data governance · Classification and privacy",
